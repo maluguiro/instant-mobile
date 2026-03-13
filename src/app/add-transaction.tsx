@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { Pill } from '@/components/ui/pill';
 import { Screen } from '@/components/ui/screen';
+import { SectionHeader } from '@/components/ui/section-header';
 import { frequentCategories, paymentMethods } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -17,16 +18,16 @@ export default function AddTransactionScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Agregar movimiento</ThemedText>
+        <ThemedText type="subtitle">Nuevo movimiento</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Registrá un gasto o ingreso en segundos.
+          Cargá un gasto o ingreso rápido y seguí tu día.
         </ThemedText>
       </View>
 
       <View style={styles.segmented}>
         {([
-          { key: 'gasto', label: 'Gasto' },
-          { key: 'ingreso', label: 'Ingreso' },
+          { key: 'gasto', label: 'Gasto', hint: 'Salida de dinero' },
+          { key: 'ingreso', label: 'Ingreso', hint: 'Entrada de dinero' },
         ] as const).map((option) => {
           const isActive = type === option.key;
           return (
@@ -41,26 +42,34 @@ export default function AddTransactionScreen() {
                 },
               ]}>
               <ThemedText type="smallBold">{option.label}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {option.hint}
+              </ThemedText>
             </Pressable>
           );
         })}
       </View>
 
-      <Card>
+      <Card style={styles.amountCard}>
+        <SectionHeader title="Monto" />
+        <View style={styles.amountRow}>
+          <ThemedText type="subtitle" style={styles.currency}>
+            $
+          </ThemedText>
+          <TextInput
+            placeholder="0"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.amountInput, { color: theme.text }]}
+            keyboardType="numeric"
+          />
+        </View>
         <ThemedText type="small" themeColor="textSecondary">
-          Monto
+          Tip: podés escribir solo números.
         </ThemedText>
-        <TextInput
-          placeholder="$0"
-          placeholderTextColor={theme.textSecondary}
-          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-        />
       </Card>
 
       <Card variant="soft">
-        <ThemedText type="small" themeColor="textSecondary">
-          Categoría
-        </ThemedText>
+        <SectionHeader title="Categorías frecuentes" />
         <View style={styles.chips}>
           {frequentCategories.map((category) => (
             <Pill key={category} label={category} />
@@ -68,27 +77,24 @@ export default function AddTransactionScreen() {
         </View>
       </Card>
 
-      <Card>
-        <ThemedText type="small" themeColor="textSecondary">
-          Fecha
-        </ThemedText>
-        <TextInput
-          placeholder="Hoy"
-          placeholderTextColor={theme.textSecondary}
-          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-        />
-      </Card>
-
-      <Card variant="soft">
-        <ThemedText type="small" themeColor="textSecondary">
-          Método de pago
-        </ThemedText>
-        <View style={styles.chips}>
-          {paymentMethods.map((method) => (
-            <Pill key={method} label={method} />
-          ))}
-        </View>
-      </Card>
+      <View style={styles.inlineCards}>
+        <Card style={styles.inlineCard}>
+          <SectionHeader title="Fecha" />
+          <TextInput
+            placeholder="Hoy"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          />
+        </Card>
+        <Card style={styles.inlineCard} variant="soft">
+          <SectionHeader title="Método" />
+          <View style={styles.chipsCompact}>
+            {paymentMethods.map((method) => (
+              <Pill key={method} label={method} />
+            ))}
+          </View>
+        </Card>
+      </View>
 
       <Pressable
         onPress={() => router.back()}
@@ -112,9 +118,42 @@ const styles = StyleSheet.create({
   segmentButton: {
     flex: 1,
     paddingVertical: Spacing.two,
-    borderRadius: 999,
-    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
+    borderRadius: 16,
+    alignItems: 'flex-start',
     borderWidth: 1,
+    gap: 4,
+  },
+  amountCard: {
+    gap: Spacing.two,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  currency: {
+    fontSize: 28,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 34,
+    fontWeight: 700,
+  },
+  chips: {
+    marginTop: Spacing.two,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  inlineCards: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  inlineCard: {
+    flex: 1,
+    minWidth: 170,
   },
   input: {
     marginTop: Spacing.two,
@@ -122,14 +161,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 600,
   },
-  chips: {
+  chipsCompact: {
     marginTop: Spacing.two,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    gap: Spacing.one,
   },
   saveButton: {
     paddingVertical: Spacing.three,

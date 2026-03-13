@@ -113,6 +113,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   fabLabelText: {
-    color: '#1E1A17',
+    fontSize: 12,
   },
 });
