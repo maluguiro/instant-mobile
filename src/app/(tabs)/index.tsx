@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -27,30 +27,42 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Hola, Malena</ThemedText>
         <ThemedText themeColor="textSecondary">
-          ¿Cómo estás hoy? Acá tenés tu foto financiera.
+          ¿Cómo estás hoy? Esta es tu foto financiera.
         </ThemedText>
       </View>
 
-      <View style={styles.highlightRow}>
-        <Card style={[styles.highlightCard, { backgroundColor: theme.cardAlt }]}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {highlightCards.monthly.label}
-          </ThemedText>
-          <ThemedText type="title" style={styles.highlightValue}>
-            {highlightCards.monthly.amount}
-          </ThemedText>
-          <Pill label={highlightCards.monthly.hint} />
-        </Card>
-        <Card style={styles.highlightCard}>
+      <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}
+        >
+        <View style={styles.primaryHeader}>
+          <View>
+            <ThemedText type="small" themeColor="textSecondary">
+              {highlightCards.monthly.label}
+            </ThemedText>
+            <ThemedText type="title" style={styles.primaryValue}>
+              {highlightCards.monthly.amount}
+            </ThemedText>
+          </View>
+          <Pill label="Disponible" tone="accent" />
+        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          {highlightCards.monthly.hint}
+        </ThemedText>
+      </Card>
+
+      <Card style={styles.secondaryCard}>
+        <View style={styles.secondaryHeader}>
           <ThemedText type="small" themeColor="textSecondary">
             {highlightCards.weekly.label}
           </ThemedText>
-          <ThemedText type="subtitle" style={styles.highlightValueSecondary}>
-            {highlightCards.weekly.amount}
-          </ThemedText>
-          <Pill label={highlightCards.weekly.hint} tone="accent" />
-        </Card>
-      </View>
+          <Pill label="Semana actual" />
+        </View>
+        <ThemedText type="subtitle" style={styles.secondaryValue}>
+          {highlightCards.weekly.amount}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Ajustable según tus decisiones de hoy
+        </ThemedText>
+      </Card>
 
       <Card>
         <SectionHeader title="Resumen de hoy" />
@@ -154,21 +166,29 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
   },
-  highlightRow: {
+  primaryCard: {
+    gap: Spacing.two,
+  },
+  primaryHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
-  highlightCard: {
-    flex: 1,
-    minWidth: 170,
-    gap: Spacing.one,
-  },
-  highlightValue: {
-    fontSize: 34,
+  primaryValue: {
+    fontSize: 36,
     lineHeight: 40,
   },
-  highlightValueSecondary: {
+  secondaryCard: {
+    gap: Spacing.one,
+  },
+  secondaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  secondaryValue: {
     fontSize: 26,
     lineHeight: 32,
   },

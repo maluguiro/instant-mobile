@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
@@ -20,7 +20,7 @@ export default function AddTransactionScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Nuevo movimiento</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Cargá un gasto o ingreso rápido y seguí tu día.
+          Cargá un gasto o ingreso y seguí tu día en segundos.
         </ThemedText>
       </View>
 
@@ -38,7 +38,7 @@ export default function AddTransactionScreen() {
                 styles.segmentButton,
                 {
                   backgroundColor: isActive ? theme.brandSoft : theme.backgroundElement,
-                  borderColor: isActive ? theme.brand : theme.border,
+                  borderColor: isActive ? theme.accent : theme.border,
                 },
               ]}>
               <ThemedText type="smallBold">{option.label}</ThemedText>
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   },
   amountInput: {
     flex: 1,
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: 700,
   },
   chips: {
@@ -172,8 +172,13 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     paddingVertical: Spacing.three,
-    borderRadius: 16,
+    borderRadius: 18,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
   },
   saveText: {
     color: '#ffffff',

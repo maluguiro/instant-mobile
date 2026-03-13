@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -12,13 +12,19 @@ type PillProps = ViewProps & {
 
 export function Pill({ label, tone = 'default', style, ...rest }: PillProps) {
   const theme = useTheme();
-  const backgroundColor = tone === 'accent' ? theme.accentSoft : theme.backgroundSelected;
+  const borderColor = tone === 'accent' ? theme.accent : theme.brand;
+  const textColor = theme.accent;
 
   return (
     <View
       {...rest}
-      style={[styles.pill, { backgroundColor, borderColor: theme.border }, style]}>
-      <ThemedText type="small" themeColor="textSecondary">
+      style={[
+        styles.pill,
+        { backgroundColor: theme.brandSoft, borderColor },
+        style,
+      ]}>
+      <ThemedText type="small" style={[styles.text, { color: textColor }]}
+        >
         {label}
       </ThemedText>
     </View>
@@ -29,7 +35,10 @@ const styles = StyleSheet.create({
   pill: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingVertical: Spacing.one,
+    paddingVertical: Spacing.half,
     paddingHorizontal: Spacing.two,
+  },
+  text: {
+    fontWeight: 600,
   },
 });

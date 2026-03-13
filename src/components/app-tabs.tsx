@@ -1,64 +1,74 @@
-import { router } from 'expo-router';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+﻿import { Feather } from '@expo/vector-icons';
+import { router, Tabs } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BottomTabInset, Colors } from '@/constants/theme';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
+  const fabBottom = BottomTabInset + Math.max(insets.bottom, 10) + 10;
 
   return (
     <View style={styles.container}>
-      <NativeTabs
-        backgroundColor={colors.background}
-        indicatorColor={colors.backgroundSelected}
-        labelStyle={{ selected: { color: colors.text } }}>
-        <NativeTabs.Trigger name="index">
-          <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/home.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="movements">
-          <NativeTabs.Trigger.Label>Movimientos</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="budget">
-          <NativeTabs.Trigger.Label>Presupuesto</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="calendar">
-          <NativeTabs.Trigger.Label>Calendario</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="settings">
-          <NativeTabs.Trigger.Label>Ajustes</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      </NativeTabs>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: colors.background,
+            borderTopColor: colors.border,
+            height: 64 + insets.bottom,
+            paddingBottom: Math.max(insets.bottom, 8),
+            paddingTop: 8,
+          },
+          tabBarActiveTintColor: colors.text,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+          },
+        }}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color }) => <Feather name="home" size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="movements"
+          options={{
+            title: 'Movimientos',
+            tabBarIcon: ({ color }) => <Feather name="list" size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="budget"
+          options={{
+            title: 'Presupuesto',
+            tabBarIcon: ({ color }) => <Feather name="pie-chart" size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: 'Calendario',
+            tabBarIcon: ({ color }) => <Feather name="calendar" size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Ajustes',
+            tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />,
+          }}
+        />
+      </Tabs>
 
       <Pressable
         onPress={() => router.push('/add-transaction')}
@@ -66,14 +76,12 @@ export default function AppTabs() {
           styles.fab,
           {
             backgroundColor: colors.brand,
-            bottom: Math.max(insets.bottom, 12) + 28,
-            opacity: pressed ? 0.9 : 1,
+            bottom: fabBottom,
+            opacity: pressed ? 0.92 : 1,
           },
         ]}>
         <ThemedText style={styles.fabText}>+</ThemedText>
-        <ThemedView
-          style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}
-          type="background">
+        <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
           <ThemedText type="smallBold" style={styles.fabLabelText}>
             Agregar
           </ThemedText>

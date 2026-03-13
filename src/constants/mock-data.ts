@@ -1,4 +1,4 @@
-export const quickActions = [
+﻿export const quickActions = [
   { label: 'Agregar movimiento', route: '/add-transaction' },
   { label: 'Movimientos', route: '/movements' },
   { label: 'Presupuesto', route: '/budget' },
@@ -74,37 +74,96 @@ export const movementGroups = [
         category: 'Hogar',
         amount: '-$24.300',
         account: 'Visa Débito',
+        time: '10:24',
+        type: 'expense',
       },
       {
         id: 'mov-5',
-        title: 'Taxi',
-        category: 'Transporte',
+        title: 'Café de paso',
+        category: 'Ocio',
         amount: '-$4.800',
         account: 'Efectivo',
+        time: '08:05',
+        type: 'expense',
       },
     ],
   },
   {
     label: 'Ayer',
-    total: '+$116.800',
+    total: '+$112.400',
     items: [
       {
         id: 'mov-2',
-        title: 'Freelance UX',
+        title: 'Sueldo',
         category: 'Ingresos',
-        amount: '+$120.000',
+        amount: '+$320.000',
         account: 'Transferencia',
+        time: '09:10',
+        type: 'income',
       },
       {
         id: 'mov-3',
-        title: 'Suscripción Música',
+        title: 'Suscripción Spotify',
         category: 'Servicios',
         amount: '-$3.200',
         account: 'Mastercard',
+        time: '08:42',
+        type: 'expense',
+      },
+      {
+        id: 'mov-6',
+        title: 'Ahorro automático',
+        category: 'Ahorro',
+        amount: '-$204.400',
+        account: 'Caja de ahorro',
+        time: '07:55',
+        type: 'expense',
+      },
+    ],
+  },
+  {
+    label: 'Lun, 11 mar',
+    total: '-$38.900',
+    items: [
+      {
+        id: 'mov-7',
+        title: 'Transporte',
+        category: 'Movilidad',
+        amount: '-$6.400',
+        account: 'SUBE',
+        time: '18:20',
+        type: 'expense',
+      },
+      {
+        id: 'mov-8',
+        title: 'Salida con amigos',
+        category: 'Ocio',
+        amount: '-$12.500',
+        account: 'Visa',
+        time: '22:30',
+        type: 'expense',
+      },
+      {
+        id: 'mov-9',
+        title: 'Supermercado',
+        category: 'Hogar',
+        amount: '-$20.000',
+        account: 'Débito',
+        time: '12:12',
+        type: 'expense',
       },
     ],
   },
 ];
+
+export const budgetOverview = {
+  monthIncome: '$530.000',
+  fixedExpenses: '$188.000',
+  plannedSavings: '$72.000',
+  monthAvailable: '$270.000',
+  weekAvailable: '$98.000',
+  monthProgress: 0.44,
+};
 
 export const budgetSummary = {
   monthBudget: '$410.000',
@@ -118,6 +177,7 @@ export const budgetCategories = [
   { id: 'cat-2', label: 'Comida', spent: 48600, limit: 80000 },
   { id: 'cat-3', label: 'Transporte', spent: 21400, limit: 50000 },
   { id: 'cat-4', label: 'Ocio', spent: 9800, limit: 30000 },
+  { id: 'cat-5', label: 'Servicios', spent: 16200, limit: 35000 },
 ];
 
 export const savingsGoals = [
@@ -169,6 +229,23 @@ export const calendarItems = [
     amount: '$18.000',
     type: 'Cuota',
   },
+];
+
+export const calendarUpcoming = [
+  { id: 'up-1', title: 'Alquiler', date: '18 mar', amount: '$120.000', tag: 'Prioritario' },
+  { id: 'up-2', title: 'Tarjeta Visa', date: '25 mar', amount: '$38.400', tag: 'Resumen' },
+  { id: 'up-3', title: 'Internet', date: '21 mar', amount: '$9.800', tag: 'Servicio' },
+];
+
+export const calendarRecurring = [
+  { id: 'rec-1', title: 'Spotify', date: '20 de cada mes', amount: '$3.200' },
+  { id: 'rec-2', title: 'Netflix', date: '8 de cada mes', amount: '$5.600' },
+  { id: 'rec-3', title: 'Curso UX', date: '27 de cada mes', amount: '$18.000' },
+];
+
+export const calendarInstallments = [
+  { id: 'ins-1', title: 'Notebook', date: '15 mar', amount: '$32.000', remaining: '4/12' },
+  { id: 'ins-2', title: 'Heladera', date: '22 mar', amount: '$18.000', remaining: '2/6' },
 ];
 
 export const duoSummary = {
