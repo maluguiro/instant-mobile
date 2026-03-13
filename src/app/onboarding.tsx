@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -12,8 +12,8 @@ import { useTheme } from '@/hooks/use-theme';
 export default function OnboardingScreen() {
   const theme = useTheme();
 
-  const handleContinue = () => {
-    setHasSeenOnboarding(true);
+  const handleContinue = async () => {
+    await setHasSeenOnboarding(true);
     router.replace('/');
   };
 

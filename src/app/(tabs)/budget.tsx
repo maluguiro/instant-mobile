@@ -1,4 +1,5 @@
-import React from 'react';
+﻿import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -6,69 +7,143 @@ import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
-import { budgetCategories, budgetSummary } from '@/constants/mock-data';
+import {
+  calculateTotals,
+  filterByMonth,
+  filterByWeek,
+  formatCurrency,
+  summarizeByCategory,
+} from '@/lib/finance';
+import { useTransactions } from '@/hooks/use-transactions';
 import { Spacing } from '@/constants/theme';
 
+const CATEGORY_LIMITS: Record<string, number> = {
+  Hogar: 120000,
+  Comida: 80000,
+  Transporte: 50000,
+  Movilidad: 50000,
+  Ocio: 30000,
+  Servicios: 35000,
+  Salud: 30000,
+};
+
 export default function BudgetScreen() {
+  const { transactions, refresh } = useTransactions();
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
+
+  const { monthTotals, weekTotals, categories } = useMemo(() => {
+    const now = new Date();
+    const monthTx = filterByMonth(transactions, now);
+    const weekTx = filterByWeek(transactions, now);
+    const monthTotals = calculateTotals(monthTx);
+    const weekTotals = calculateTotals(weekTx);
+    const categories = summarizeByCategory(monthTx)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6);
+
+    return { monthTotals, weekTotals, categories };
+  }, [transactions]);
+
+  const progress = monthTotals.income
+    ? Math.min(monthTotals.expense / monthTotals.income, 1)
+    : 0;
+
   return (
     <Screen>
       <View style={styles.header}>
         <ThemedText type="subtitle">Presupuesto</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Controlá tu mes con claridad y sin fricción.
+          Mirá cómo se distribuye tu mes y cuánto queda disponible.
         </ThemedText>
       </View>
 
       <Card>
-        <SectionHeader title="Resumen mensual" />
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryItem}>
+        <SectionHeader title="Panorama mensual" />
+        <View style={styles.overviewGrid}>
+          <View style={styles.overviewItem}>
             <ThemedText type="small" themeColor="textSecondary">
-              Presupuesto
+              Ingresos del mes
             </ThemedText>
-            <ThemedText style={styles.summaryValue}>{budgetSummary.monthBudget}</ThemedText>
+            <ThemedText type="smallBold" style={styles.overviewValue}>
+              {formatCurrency(monthTotals.income)}
+            </ThemedText>
           </View>
-          <View style={styles.summaryItem}>
+          <View style={styles.overviewItem}>
             <ThemedText type="small" themeColor="textSecondary">
-              Gastado
+              Egresos del mes
             </ThemedText>
-            <ThemedText style={styles.summaryValue}>{budgetSummary.spent}</ThemedText>
+            <ThemedText type="smallBold" style={styles.overviewValue}>
+              {formatCurrency(monthTotals.expense)}
+            </ThemedText>
           </View>
-          <View style={styles.summaryItem}>
+          <View style={styles.overviewItem}>
             <ThemedText type="small" themeColor="textSecondary">
-              Disponible
+              Ahorro
             </ThemedText>
-            <ThemedText style={styles.summaryValue}>{budgetSummary.remaining}</ThemedText>
+            <ThemedText type="smallBold" style={styles.overviewValue}>
+              {formatCurrency(monthTotals.savings)}
+            </ThemedText>
+          </View>
+          <View style={styles.overviewItem}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Disponible mensual
+            </ThemedText>
+            <ThemedText type="smallBold" style={styles.overviewValue}>
+              {formatCurrency(monthTotals.available)}
+            </ThemedText>
           </View>
         </View>
+        <View style={styles.progressRow}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Progreso del mes
+          </ThemedText>
+          <ThemedText type="smallBold">
+            {Math.round(progress * 100)}%
+          </ThemedText>
+        </View>
+        <ProgressBar value={progress} />
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="Presupuesto semanal" />
-        <ThemedText style={styles.weekValue}>{budgetSummary.weekBudget}</ThemedText>
+        <SectionHeader title="Disponible semanal" />
+        <ThemedText type="subtitle" style={styles.weekValue}>
+          {formatCurrency(weekTotals.available)}
+        </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Semana actual · Ajustá sobre la marcha
+          Semana actual · Ajustable según tus movimientos
         </ThemedText>
       </Card>
 
       <Card>
         <SectionHeader title="Categorías" />
-        <View style={styles.categories}>
-          {budgetCategories.map((category) => {
-            const progress = category.spent / category.limit;
-            return (
-              <View key={category.id} style={styles.categoryRow}>
-                <View style={styles.categoryHeader}>
-                  <ThemedText>{category.label}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    ${category.spent.toLocaleString('es-AR')} / ${category.limit.toLocaleString('es-AR')}
-                  </ThemedText>
+        {categories.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Todavía no hay gastos categorizados este mes.
+          </ThemedText>
+        ) : (
+          <View style={styles.categories}>
+            {categories.map((category) => {
+              const limit = CATEGORY_LIMITS[category.category] ?? 50000;
+              const progressValue = Math.min(category.amount / limit, 1);
+              return (
+                <View key={category.category} style={styles.categoryRow}>
+                  <View style={styles.categoryHeader}>
+                    <ThemedText>{category.category}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {formatCurrency(category.amount)} / {formatCurrency(limit)}
+                    </ThemedText>
+                  </View>
+                  <ProgressBar value={progressValue} />
                 </View>
-                <ProgressBar value={progress} />
-              </View>
-            );
-          })}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </Card>
     </Screen>
   );
@@ -78,23 +153,29 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
   },
-  summaryRow: {
+  overviewGrid: {
+    marginTop: Spacing.three,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.three,
-    marginTop: Spacing.three,
   },
-  summaryItem: {
-    minWidth: 110,
+  overviewItem: {
+    minWidth: 140,
     gap: Spacing.one,
   },
-  summaryValue: {
+  overviewValue: {
     fontSize: 18,
-    fontWeight: 700,
+  },
+  progressRow: {
+    marginTop: Spacing.three,
+    marginBottom: Spacing.two,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   weekValue: {
-    fontSize: 24,
-    fontWeight: 700,
+    fontSize: 26,
+    lineHeight: 32,
   },
   categories: {
     marginTop: Spacing.three,

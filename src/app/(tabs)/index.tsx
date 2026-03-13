@@ -1,5 +1,6 @@
-﻿import { router } from 'expo-router';
-import React from 'react';
+﻿import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
+import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,18 +10,39 @@ import { Pill } from '@/components/ui/pill';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { StatRow } from '@/components/ui/stat-row';
+import { quickActions } from '@/constants/mock-data';
 import {
-  highlightCards,
-  quickActions,
-  recentMovements,
-  summaryStats,
-  upcomingBills,
-} from '@/constants/mock-data';
+  calculateTotals,
+  filterByMonth,
+  filterByWeek,
+  formatCurrency,
+  formatShortDate,
+} from '@/lib/finance';
+import { useTransactions } from '@/hooks/use-transactions';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { transactions, refresh } = useTransactions();
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
+
+  const { monthlyTotals, weeklyTotals } = useMemo(() => {
+    const now = new Date();
+    const monthTx = filterByMonth(transactions, now);
+    const weekTx = filterByWeek(transactions, now);
+    return {
+      monthlyTotals: calculateTotals(monthTx),
+      weeklyTotals: calculateTotals(weekTx),
+    };
+  }, [transactions]);
+
+  const recent = transactions.slice(0, 3);
 
   return (
     <Screen>
@@ -31,33 +53,32 @@ export default function HomeScreen() {
         </ThemedText>
       </View>
 
-      <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}
-        >
+      <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}>
         <View style={styles.primaryHeader}>
           <View>
             <ThemedText type="small" themeColor="textSecondary">
-              {highlightCards.monthly.label}
+              Disponible mensual
             </ThemedText>
             <ThemedText type="title" style={styles.primaryValue}>
-              {highlightCards.monthly.amount}
+              {formatCurrency(monthlyTotals.available)}
             </ThemedText>
           </View>
           <Pill label="Disponible" tone="accent" />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
-          {highlightCards.monthly.hint}
+          Ingresos menos egresos del mes actual
         </ThemedText>
       </Card>
 
       <Card style={styles.secondaryCard}>
         <View style={styles.secondaryHeader}>
           <ThemedText type="small" themeColor="textSecondary">
-            {highlightCards.weekly.label}
+            Disponible semanal
           </ThemedText>
           <Pill label="Semana actual" />
         </View>
         <ThemedText type="subtitle" style={styles.secondaryValue}>
-          {highlightCards.weekly.amount}
+          {formatCurrency(weeklyTotals.available)}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           Ajustable según tus decisiones de hoy
@@ -65,17 +86,26 @@ export default function HomeScreen() {
       </Card>
 
       <Card>
-        <SectionHeader title="Resumen de hoy" />
+        <SectionHeader title="Resumen del mes" />
         <View style={styles.statsRow}>
-          {summaryStats.map((stat) => (
-            <StatRow
-              key={stat.label}
-              label={stat.label}
-              value={stat.value}
-              tone={stat.tone as 'positive' | 'neutral'}
-              style={styles.statItem}
-            />
-          ))}
+          <StatRow
+            label="Ingresos"
+            value={formatCurrency(monthlyTotals.income)}
+            tone="positive"
+            style={styles.statItem}
+          />
+          <StatRow
+            label="Egresos"
+            value={formatCurrency(monthlyTotals.expense)}
+            tone="neutral"
+            style={styles.statItem}
+          />
+          <StatRow
+            label="Ahorro"
+            value={formatCurrency(monthlyTotals.savings)}
+            tone="positive"
+            style={styles.statItem}
+          />
         </View>
       </Card>
 
@@ -134,29 +164,28 @@ export default function HomeScreen() {
           onPress={() => router.push('/movements')}
         />
         <View style={styles.listGap}>
-          {recentMovements.slice(0, 3).map((movement) => (
-            <ListItem
-              key={movement.id}
-              title={movement.title}
-              subtitle={`${movement.category} · ${movement.date}`}
-              trailing={movement.amount}
-            />
-          ))}
+          {recent.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Registrá tu primer movimiento para verlos acá.
+            </ThemedText>
+          ) : (
+            recent.map((movement) => (
+              <ListItem
+                key={movement.id}
+                title={movement.category}
+                subtitle={`${movement.method} · ${formatShortDate(movement.date)}`}
+                trailing={`${movement.type === 'income' ? '+' : '-'}${formatCurrency(movement.amount)}`}
+              />
+            ))
+          )}
         </View>
       </Card>
 
       <Card variant="soft">
         <SectionHeader title="Próximos vencimientos" />
-        <View style={styles.listGap}>
-          {upcomingBills.map((bill) => (
-            <ListItem
-              key={bill.id}
-              title={bill.title}
-              subtitle={`Vence ${bill.due}`}
-              trailing={bill.amount}
-            />
-          ))}
-        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          Todavía no cargaste vencimientos. Próximamente vas a poder agregarlos desde esta sección.
+        </ThemedText>
       </Card>
     </Screen>
   );
