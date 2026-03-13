@@ -37,7 +37,7 @@ export default function MovementsScreen() {
               <ListItem
                 key={item.id}
                 title={item.title}
-                subtitle={`${item.category} · ${item.account}`}
+                subtitle={`${item.category} Â· ${item.account}`}
                 trailing={item.amount}
               />
             ))}

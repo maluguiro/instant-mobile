@@ -15,7 +15,7 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Ajustes</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Personaliz· Instant a tu forma de organizarte.
+          Personaliz√° Instant a tu forma de organizarte.
         </ThemedText>
       </View>
 

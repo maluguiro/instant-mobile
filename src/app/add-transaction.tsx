@@ -20,7 +20,7 @@ export default function AddTransactionScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Nuevo movimiento</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Carg· un gasto o ingreso r·pido y seguÌ tu dÌa.
+          Carg√° un gasto o ingreso r√°pido y segu√≠ tu d√≠a.
         </ThemedText>
       </View>
 
@@ -64,12 +64,12 @@ export default function AddTransactionScreen() {
           />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
-          Tip: podÈs escribir solo n˙meros.
+          Tip: pod√©s escribir solo n√∫meros.
         </ThemedText>
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="CategorÌas frecuentes" />
+        <SectionHeader title="Categor√≠as frecuentes" />
         <View style={styles.chips}>
           {frequentCategories.map((category) => (
             <Pill key={category} label={category} />
@@ -87,7 +87,7 @@ export default function AddTransactionScreen() {
           />
         </Card>
         <Card style={styles.inlineCard} variant="soft">
-          <SectionHeader title="MÈtodo" />
+          <SectionHeader title="M√©todo" />
           <View style={styles.chipsCompact}>
             {paymentMethods.map((method) => (
               <Pill key={method} label={method} />

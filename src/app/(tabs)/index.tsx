@@ -27,7 +27,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Hola, Malena</ThemedText>
         <ThemedText themeColor="textSecondary">
-          ¿Cómo estás hoy? Acá tenés tu foto financiera.
+          Â¿CÃ³mo estÃ¡s hoy? AcÃ¡ tenÃ©s tu foto financiera.
         </ThemedText>
       </View>
 
@@ -68,7 +68,7 @@ export default function HomeScreen() {
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="Accesos rápidos" />
+        <SectionHeader title="Accesos rÃ¡pidos" />
         <View style={styles.quickActions}>
           {quickActions.map((action) => (
             <Pressable
@@ -117,7 +117,7 @@ export default function HomeScreen() {
 
       <Card>
         <SectionHeader
-          title="Últimos movimientos"
+          title="Ãšltimos movimientos"
           actionLabel="Ver todos"
           onPress={() => router.push('/movements')}
         />
@@ -126,7 +126,7 @@ export default function HomeScreen() {
             <ListItem
               key={movement.id}
               title={movement.title}
-              subtitle={`${movement.category} · ${movement.date}`}
+              subtitle={`${movement.category} Â· ${movement.date}`}
               trailing={movement.amount}
             />
           ))}
@@ -134,7 +134,7 @@ export default function HomeScreen() {
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="Próximos vencimientos" />
+        <SectionHeader title="PrÃ³ximos vencimientos" />
         <View style={styles.listGap}>
           {upcomingBills.map((bill) => (
             <ListItem

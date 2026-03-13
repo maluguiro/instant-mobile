@@ -15,7 +15,7 @@ export default function SavingsGoalsScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Metas de ahorro</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Seguí tu progreso con metas simples y visibles.
+          SeguÃ­ tu progreso con metas simples y visibles.
         </ThemedText>
       </View>
 
@@ -23,7 +23,7 @@ export default function SavingsGoalsScreen() {
         <Card key={goal.id}>
           <SectionHeader title={goal.title} />
           <ThemedText type="small" themeColor="textSecondary">
-            Meta {goal.target} · Fecha {goal.due}
+            Meta {goal.target} Â· Fecha {goal.due}
           </ThemedText>
           <View style={styles.goalRow}>
             <ThemedText type="smallBold">{goal.saved}</ThemedText>

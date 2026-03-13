@@ -15,7 +15,7 @@ export default function BudgetScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Presupuesto</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Controlá tu mes con claridad y sin fricción.
+          ControlÃ¡ tu mes con claridad y sin fricciÃ³n.
         </ThemedText>
       </View>
 
@@ -47,12 +47,12 @@ export default function BudgetScreen() {
         <SectionHeader title="Presupuesto semanal" />
         <ThemedText style={styles.weekValue}>{budgetSummary.weekBudget}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Semana actual · Ajustá sobre la marcha
+          Semana actual Â· AjustÃ¡ sobre la marcha
         </ThemedText>
       </Card>
 
       <Card>
-        <SectionHeader title="Categorías" />
+        <SectionHeader title="CategorÃ­as" />
         <View style={styles.categories}>
           {budgetCategories.map((category) => {
             const progress = category.spent / category.limit;

@@ -20,7 +20,7 @@ export default function CalendarScreen() {
       </View>
 
       <Card>
-        <SectionHeader title="Próximos vencimientos" />
+        <SectionHeader title="PrÃ³ximos vencimientos" />
         <View style={styles.listGap}>
           {upcomingBills.map((bill) => (
             <ListItem
@@ -40,7 +40,7 @@ export default function CalendarScreen() {
             <ListItem
               key={item.id}
               title={item.title}
-              subtitle={`${item.date} · ${item.type}`}
+              subtitle={`${item.date} Â· ${item.type}`}
               trailing={item.amount}
             />
           ))}

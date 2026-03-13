@@ -47,13 +47,13 @@ export default function InstantDuoScreen() {
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="Quién pagó qué" />
+        <SectionHeader title="QuiÃ©n pagÃ³ quÃ©" />
         <View style={styles.listGap}>
           {duoMovements.map((movement) => (
             <ListItem
               key={movement.id}
               title={movement.title}
-              subtitle={`Pagó ${movement.paidBy}`}
+              subtitle={`PagÃ³ ${movement.paidBy}`}
               trailing={movement.amount}
             />
           ))}

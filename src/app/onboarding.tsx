@@ -28,17 +28,17 @@ export default function OnboardingScreen() {
 
       <Card variant="soft">
         <ThemedText style={styles.description}>
-          Registr· ingresos y gastos en segundos, entendÈ tu disponible semanal y
-          mensual, y compartÌ gastos con Instant Duo.
+          Registr√° ingresos y gastos en segundos, entend√© tu disponible semanal y
+          mensual, y compart√≠ gastos con Instant Duo.
         </ThemedText>
       </Card>
 
       <Card>
         <View style={styles.points}>
-          <ThemedText type="smallBold">ï Carga r·pida de movimientos</ThemedText>
-          <ThemedText type="smallBold">ï Metas de ahorro claras</ThemedText>
-          <ThemedText type="smallBold">ï Calendario de vencimientos</ThemedText>
-          <ThemedText type="smallBold">ï Modo compartido para dos</ThemedText>
+          <ThemedText type="smallBold">‚Ä¢ Carga r√°pida de movimientos</ThemedText>
+          <ThemedText type="smallBold">‚Ä¢ Metas de ahorro claras</ThemedText>
+          <ThemedText type="smallBold">‚Ä¢ Calendario de vencimientos</ThemedText>
+          <ThemedText type="smallBold">‚Ä¢ Modo compartido para dos</ThemedText>
         </View>
       </Card>
 

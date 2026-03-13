@@ -27,7 +27,7 @@ export const recentMovements = [
     category: 'Hogar',
     amount: '-$24.300',
     date: 'Hoy, 10:24',
-    account: 'Visa Débito',
+    account: 'Visa DÃ©bito',
   },
   {
     id: 'mov-2',
@@ -39,7 +39,7 @@ export const recentMovements = [
   },
   {
     id: 'mov-3',
-    title: 'Suscripción Música',
+    title: 'SuscripciÃ³n MÃºsica',
     category: 'Servicios',
     amount: '-$3.200',
     date: 'Ayer, 08:42',
@@ -47,10 +47,10 @@ export const recentMovements = [
   },
   {
     id: 'mov-4',
-    title: 'Café con amigos',
+    title: 'CafÃ© con amigos',
     category: 'Ocio',
     amount: '-$4.800',
-    date: 'Mié, 20:18',
+    date: 'MiÃ©, 20:18',
     account: 'Efectivo',
   },
 ];
@@ -73,7 +73,7 @@ export const movementGroups = [
         title: 'Supermercado',
         category: 'Hogar',
         amount: '-$24.300',
-        account: 'Visa Débito',
+        account: 'Visa DÃ©bito',
       },
       {
         id: 'mov-5',
@@ -97,7 +97,7 @@ export const movementGroups = [
       },
       {
         id: 'mov-3',
-        title: 'Suscripción Música',
+        title: 'SuscripciÃ³n MÃºsica',
         category: 'Servicios',
         amount: '-$3.200',
         account: 'Mastercard',
@@ -202,7 +202,7 @@ export const duoMovements = [
 export const settingsSections = [
   {
     title: 'Preferencias',
-    items: ['Moneda', 'Categorías', 'Recordatorios'],
+    items: ['Moneda', 'CategorÃ­as', 'Recordatorios'],
   },
   {
     title: 'Datos',
@@ -210,7 +210,7 @@ export const settingsSections = [
   },
   {
     title: 'Apariencia',
-    items: ['Modo oscuro (próximamente)'],
+    items: ['Modo oscuro (prÃ³ximamente)'],
   },
 ];
 
@@ -223,4 +223,4 @@ export const frequentCategories = [
   'Salud',
 ];
 
-export const paymentMethods = ['Efectivo', 'Débito', 'Crédito', 'Transferencia'];
+export const paymentMethods = ['Efectivo', 'DÃ©bito', 'CrÃ©dito', 'Transferencia'];
