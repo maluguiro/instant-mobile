@@ -1,10 +1,10 @@
 ﻿import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
-import { Pill } from '@/components/ui/pill';
+import { SelectableOption } from '@/components/ui/selectable-option';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import {
@@ -72,9 +72,12 @@ export default function MovementsScreen() {
         <SectionHeader title="Filtros rápidos" />
         <View style={styles.filters}>
           {FILTERS.map((item) => (
-            <Pressable key={item} onPress={() => setFilter(item)}>
-              <Pill label={item} tone={filter === item ? 'accent' : 'default'} />
-            </Pressable>
+            <SelectableOption
+              key={item}
+              label={item}
+              selected={filter === item}
+              onPress={() => setFilter(item)}
+            />
           ))}
         </View>
       </Card>

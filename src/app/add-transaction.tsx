@@ -1,19 +1,30 @@
-﻿import DateTimePicker from '@react-native-community/datetimepicker';
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
-import { Pill } from '@/components/ui/pill';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { SelectableOption } from '@/components/ui/selectable-option';
 import { paymentMethods } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { formatShortDate, toISODate } from '@/lib/finance';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
+
+function getNativeDateTimePicker() {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@react-native-community/datetimepicker').default;
+  } catch {
+    return null;
+  }
+}
 
 const EXPENSE_CATEGORIES = ['Comida', 'Transporte', 'Hogar', 'Servicios', 'Ocio', 'Salud', 'Ahorro'];
 const INCOME_CATEGORIES = ['Sueldo', 'Freelance', 'Ventas', 'Intereses', 'Otros'];
@@ -24,6 +35,7 @@ type DateOption = (typeof DATE_OPTIONS)[number];
 type TransactionKind = 'expense' | 'income';
 
 export default function AddTransactionScreen() {
+  const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
   const [type, setType] = useState<TransactionKind>('expense');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -102,29 +114,20 @@ export default function AddTransactionScreen() {
       </View>
 
       <View style={styles.segmented}>
-        {([
-          { key: 'expense', label: 'Egreso', hint: 'Salida de dinero' },
-          { key: 'income', label: 'Ingreso', hint: 'Entrada de dinero' },
-        ] as const).map((option) => {
-          const isActive = type === option.key;
-          return (
-            <Pressable
-              key={option.key}
-              onPress={() => setType(option.key)}
-              style={[
-                styles.segmentButton,
-                {
-                  backgroundColor: isActive ? theme.brandSoft : theme.backgroundElement,
-                  borderColor: isActive ? theme.accent : theme.border,
-                },
-              ]}>
-              <ThemedText type="smallBold">{option.label}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {option.hint}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
+        <SelectableOption
+          label="Egreso"
+          description="Salida de dinero"
+          selected={type === 'expense'}
+          size="card"
+          onPress={() => setType('expense')}
+        />
+        <SelectableOption
+          label="Ingreso"
+          description="Entrada de dinero"
+          selected={type === 'income'}
+          size="card"
+          onPress={() => setType('income')}
+        />
       </View>
 
       <Card style={styles.amountCard}>
@@ -153,29 +156,25 @@ export default function AddTransactionScreen() {
           {categories.map((category) => {
             const selected = selectedCategory === category && !useCustomCategory;
             return (
-              <Pressable
+              <SelectableOption
                 key={category}
+                label={category}
+                selected={selected}
                 onPress={() => {
                   setUseCustomCategory(false);
                   setSelectedCategory(category);
                 }}
-                style={({ pressed }) => [pressed && styles.pillPressed]}>
-                <Pill
-                  label={category}
-                  tone={selected ? 'accent' : 'default'}
-                  style={selected ? styles.pillSelected : undefined}
-                />
-              </Pressable>
+              />
             );
           })}
-          <Pressable
+          <SelectableOption
+            label="Agregar categoría"
+            selected={useCustomCategory}
             onPress={() => {
               setUseCustomCategory(true);
               setSelectedCategory('');
             }}
-            style={({ pressed }) => [pressed && styles.pillPressed]}>
-            <Pill label="Agregar categoría" tone={useCustomCategory ? 'accent' : 'default'} />
-          </Pressable>
+          />
         </View>
         {useCustomCategory ? (
           <TextInput
@@ -192,16 +191,28 @@ export default function AddTransactionScreen() {
         <SectionHeader title="Fecha" />
         <View style={styles.chipsCompact}>
           {DATE_OPTIONS.map((option) => (
-            <Pressable key={option} onPress={() => handleDateSelect(option)}>
-              <Pill label={option} tone={dateOption === option ? 'accent' : 'default'} />
-            </Pressable>
+            <SelectableOption
+              key={option}
+              label={option}
+              selected={dateOption === option}
+              onPress={() => handleDateSelect(option)}
+            />
           ))}
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {dateOption === 'Elegir fecha'
-            ? `Seleccionada: ${formatShortDate(toISODate(selectedDate))}`
-            : `Seleccionada: ${formatShortDate(toISODate(selectedDate))}`}
-        </ThemedText>
+        <Pressable
+          style={[styles.dateBox, { borderColor: theme.border, backgroundColor: theme.card }]}
+          onPress={() => {
+            if (dateOption === 'Elegir fecha' && NativeDateTimePicker) {
+              setShowPicker(true);
+            }
+          }}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Fecha seleccionada
+          </ThemedText>
+          <ThemedText type="smallBold">
+            {formatShortDate(toISODate(selectedDate))}
+          </ThemedText>
+        </Pressable>
         {Platform.OS === 'web' && dateOption === 'Elegir fecha' ? (
           <TextInput
             placeholder="AAAA-MM-DD"
@@ -209,12 +220,9 @@ export default function AddTransactionScreen() {
             style={[styles.input, { color: theme.text, borderColor: theme.border }]}
             value={toISODate(selectedDate)}
             onChangeText={(value) => {
-              const parts = value.split('-');
-              if (parts.length === 3) {
-                const date = new Date(value + 'T00:00:00');
-                if (!Number.isNaN(date.getTime())) {
-                  setSelectedDate(date);
-                }
+              const date = new Date(value + 'T00:00:00');
+              if (!Number.isNaN(date.getTime())) {
+                setSelectedDate(date);
               }
             }}
           />
@@ -224,21 +232,14 @@ export default function AddTransactionScreen() {
       <Card variant="soft">
         <SectionHeader title="Método" />
         <View style={styles.chipsCompact}>
-          {paymentMethods.map((method) => {
-            const selected = selectedMethod === method;
-            return (
-              <Pressable
-                key={method}
-                onPress={() => setSelectedMethod(method)}
-                style={({ pressed }) => [pressed && styles.pillPressed]}>
-                <Pill
-                  label={method}
-                  tone={selected ? 'accent' : 'default'}
-                  style={selected ? styles.pillSelected : undefined}
-                />
-              </Pressable>
-            );
-          })}
+          {paymentMethods.map((method) => (
+            <SelectableOption
+              key={method}
+              label={method}
+              selected={selectedMethod === method}
+              onPress={() => setSelectedMethod(method)}
+            />
+          ))}
         </View>
       </Card>
 
@@ -256,8 +257,8 @@ export default function AddTransactionScreen() {
         </ThemedText>
       </Pressable>
 
-      {showPicker && Platform.OS !== 'web' ? (
-        <DateTimePicker
+      {showPicker && NativeDateTimePicker ? (
+        <NativeDateTimePicker
           value={selectedDate}
           mode="date"
           display="default"
@@ -280,15 +281,6 @@ const styles = StyleSheet.create({
   segmented: {
     flexDirection: 'row',
     gap: Spacing.two,
-  },
-  segmentButton: {
-    flex: 1,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: 16,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    gap: 4,
   },
   amountCard: {
     gap: Spacing.two,
@@ -327,11 +319,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 600,
   },
-  pillSelected: {
-    borderWidth: 1.5,
-  },
-  pillPressed: {
-    opacity: 0.85,
+  dateBox: {
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
   },
   errorText: {
     marginTop: Spacing.one,
