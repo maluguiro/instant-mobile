@@ -2,7 +2,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -25,13 +25,14 @@ import {
   isSavingsCategory,
   toISODate,
 } from '@/lib/finance';
-import { SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
+import { defaultFinanceSettings, SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
 import {
   addSavingsGoal,
   contributeToGoal,
   GoalContributionMode,
   GoalFrequency,
   getSavingsGoals,
+  removeSavingsGoal,
   SavingsGoal,
 } from '@/lib/goals';
 
@@ -59,7 +60,8 @@ const WEEK_DAY_LABELS: Record<number, string> = {
 };
 
 function parseAmount(value: string): number {
-  const normalized = value.replace(/[^0-9,.-]/g, '').replace(',', '.');
+  const cleaned = value.replace(/[^0-9,.-]/g, '');
+  const normalized = cleaned.replace(/\./g, '').replace(',', '.');
   const parsed = Number(normalized);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -72,7 +74,7 @@ function formatFrequency(frequency: GoalFrequency | SavingsFrequency, everyDays:
 }
 
 function formatSavingsSchedule(
-  frequency: SavingsFrequency,
+  frequency: SavingsFrequency | GoalFrequency,
   monthDay: number,
   weekday: number,
   everyDays: number
@@ -84,9 +86,9 @@ function formatSavingsSchedule(
     return `cada ${Math.max(everyDays, 1)} días`;
   }
   if (frequency === 'manual') {
-    return 'manual';
+    return 'reserva manual';
   }
-  return `cada ${Math.max(monthDay, 1)} del mes`;
+  return `el día ${Math.max(monthDay, 1)} de cada mes`;
 }
 
 function formatWeeklyRenewal(
@@ -101,13 +103,19 @@ function formatWeeklyRenewal(
 }
 
 function formatGoalPlan(goal: SavingsGoal) {
+  const schedule = formatSavingsSchedule(
+    goal.frequency,
+    goal.monthDay,
+    goal.weekday,
+    goal.everyDays
+  );
+  if (goal.mode === 'manual' || goal.frequency === 'manual') {
+    return 'Aportes manuales';
+  }
   if (goal.mode === 'percent') {
-    return `${goal.percent}% ${formatFrequency(goal.frequency, goal.everyDays)}`;
+    return `${goal.percent}% ${schedule}`;
   }
-  if (goal.mode === 'manual') {
-    return `Manual · ${formatFrequency(goal.frequency, goal.everyDays)}`;
-  }
-  return `${formatCurrency(goal.fixedAmount)} ${formatFrequency(goal.frequency, goal.everyDays)}`;
+  return `${formatCurrency(goal.fixedAmount)} ${schedule}`;
 }
 
 export default function BudgetScreen() {
@@ -143,6 +151,8 @@ export default function BudgetScreen() {
   const [goalPercent, setGoalPercent] = useState('');
   const [goalFrequency, setGoalFrequency] = useState<GoalFrequency>('monthly');
   const [goalEveryDays, setGoalEveryDays] = useState('30');
+  const [goalMonthDay, setGoalMonthDay] = useState('1');
+  const [goalWeekday, setGoalWeekday] = useState(1);
   const [goalContribution, setGoalContribution] = useState<Record<string, string>>({});
 
   const [savePlanDone, setSavePlanDone] = useState(false);
@@ -238,19 +248,19 @@ export default function BudgetScreen() {
   }, [weeklyRenewal, weeklyAmount]);
 
   const savingsSummary = useMemo(() => {
-    const frequencyLabel = formatSavingsSchedule(
+    const schedule = formatSavingsSchedule(
       savingsFrequency,
       parseAmount(savingsMonthDay),
       savingsWeekday,
       parseAmount(savingsEveryDays)
     );
+    if (savingsMode === 'manual' || savingsFrequency === 'manual') {
+      return 'Reserva manual';
+    }
     if (savingsMode === 'percent') {
-      return `Se reservará el ${parseAmount(savingsPercent) || 0}% de tus ingresos (${frequencyLabel})`;
+      return `Se reservará el ${parseAmount(savingsPercent) || 0}% de tus ingresos ${schedule}`;
     }
-    if (savingsMode === 'manual') {
-      return `Reservas manuales (${frequencyLabel})`;
-    }
-    return `Se reservarán ${formatCurrency(parseAmount(savingsFixed) || 0)} (${frequencyLabel})`;
+    return `Se reservarán ${formatCurrency(parseAmount(savingsFixed) || 0)} ${schedule}`;
   }, [
     savingsMode,
     savingsFixed,
@@ -273,6 +283,17 @@ export default function BudgetScreen() {
     const totalSaved = goals.reduce((acc, goal) => acc + goal.saved, 0);
     return { totalTarget, totalSaved };
   }, [goals]);
+
+  const goalSchedulePreview = useMemo(
+    () =>
+      formatSavingsSchedule(
+        goalFrequency,
+        parseAmount(goalMonthDay),
+        goalWeekday,
+        parseAmount(goalEveryDays)
+      ),
+    [goalFrequency, goalMonthDay, goalWeekday, goalEveryDays]
+  );
 
   const handleSavePlan = async () => {
     const fixed = Math.max(parseAmount(savingsFixed), 0);
@@ -335,7 +356,10 @@ export default function BudgetScreen() {
     const title = goalTitle.trim();
     const target = Math.max(parseAmount(goalTarget), 0);
     const saved = Math.max(parseAmount(goalSaved), 0);
-    if (!title || !target) return;
+    if (!title || !target) {
+      Alert.alert('Completá la meta', 'Agregá un nombre y un monto objetivo válido.');
+      return;
+    }
 
     const goal: SavingsGoal = {
       id: String(Date.now()),
@@ -347,6 +371,8 @@ export default function BudgetScreen() {
       percent: Math.max(parseAmount(goalPercent), 0),
       frequency: goalFrequency,
       everyDays: Math.max(parseAmount(goalEveryDays), 1),
+      monthDay: Math.max(parseAmount(goalMonthDay), 1),
+      weekday: goalWeekday,
       createdAt: new Date().toISOString(),
     };
 
@@ -358,6 +384,8 @@ export default function BudgetScreen() {
     setGoalFixedAmount('');
     setGoalPercent('');
     setGoalEveryDays('30');
+    setGoalMonthDay('1');
+    setGoalWeekday(1);
     setGoalAddedDone(true);
     setTimeout(() => setGoalAddedDone(false), 1400);
   };
@@ -375,11 +403,70 @@ export default function BudgetScreen() {
     );
   };
 
+  const handleClearSavings = () => {
+    Alert.alert('Borrar ahorro', '¿Querés eliminar la configuración de ahorro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Borrar',
+        style: 'destructive',
+        onPress: async () => {
+          await update({
+            ...settings,
+            savingsMode: defaultFinanceSettings.savingsMode,
+            savingsFixed: defaultFinanceSettings.savingsFixed,
+            savingsPercent: defaultFinanceSettings.savingsPercent,
+            savingsFrequency: defaultFinanceSettings.savingsFrequency,
+            savingsEveryDays: defaultFinanceSettings.savingsEveryDays,
+            savingsMonthDay: defaultFinanceSettings.savingsMonthDay,
+            savingsWeekday: defaultFinanceSettings.savingsWeekday,
+          });
+        },
+      },
+    ]);
+  };
+
+  const handleClearWeekly = () => {
+    Alert.alert('Borrar plan semanal', '¿Querés eliminar el plan semanal configurado?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Borrar',
+        style: 'destructive',
+        onPress: async () => {
+          await update({
+            ...settings,
+            weeklyMode: defaultFinanceSettings.weeklyMode,
+            weeklyAmount: defaultFinanceSettings.weeklyAmount,
+            weeklyRenewal: defaultFinanceSettings.weeklyRenewal,
+            weeklyCustomDay: defaultFinanceSettings.weeklyCustomDay,
+            weeklyEveryDays: defaultFinanceSettings.weeklyEveryDays,
+            weeklyManualEnabledAmount: defaultFinanceSettings.weeklyManualEnabledAmount,
+            weeklyManualEnabledAt: defaultFinanceSettings.weeklyManualEnabledAt,
+          });
+        },
+      },
+    ]);
+  };
+
+  const handleRemoveGoal = (goalId: string) => {
+    Alert.alert('Eliminar meta', '¿Querés borrar esta meta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Borrar',
+        style: 'destructive',
+        onPress: async () => {
+          const next = await removeSavingsGoal(goalId);
+          setGoals(next);
+        },
+      },
+    ]);
+  };
+
   const savingsTarget = calculateSavingsReserved(totals, settings);
   const savingsProgressTarget = savingsTarget > 0 ? savingsTarget : monthAvailable.savingsTotal;
   const savingsProgressValue =
     savingsProgressTarget > 0 ? monthAvailable.savingsTotal / savingsProgressTarget : 0;
-  const savePlanColor = savePlanDone ? theme.accent : theme.brand;
+  const savePlanColor = savePlanDone ? theme.brandSoft : theme.brand;
+  const savePlanTextColor = savePlanDone ? theme.text : '#ffffff';
 
   return (
     <Screen>
@@ -556,6 +643,18 @@ export default function BudgetScreen() {
                 Reservado este período: {formatCurrency(monthAvailable.savingsReserved)}
               </ThemedText>
             </Card>
+
+            <Pressable
+              onPress={handleClearSavings}
+              style={({ pressed }) => [
+                styles.outlineButton,
+                { borderColor: theme.border },
+                pressed && styles.buttonPressed,
+              ]}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                Borrar ahorro
+              </ThemedText>
+            </Pressable>
           </View>
         ) : null}
 
@@ -693,6 +792,18 @@ export default function BudgetScreen() {
                 </ThemedText>
               </View>
             </Card>
+
+            <Pressable
+              onPress={handleClearWeekly}
+              style={({ pressed }) => [
+                styles.outlineButton,
+                { borderColor: theme.border },
+                pressed && styles.buttonPressed,
+              ]}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                Borrar plan semanal
+              </ThemedText>
+            </Pressable>
           </View>
         ) : null}
 
@@ -768,6 +879,17 @@ export default function BudgetScreen() {
                         </Pressable>
                       </View>
                     ) : null}
+                    <Pressable
+                      onPress={() => handleRemoveGoal(goal.id)}
+                      style={({ pressed }) => [
+                        styles.outlineButton,
+                        { borderColor: theme.border },
+                        pressed && styles.buttonPressed,
+                      ]}>
+                      <ThemedText type="smallBold" themeColor="textSecondary">
+                        Eliminar meta
+                      </ThemedText>
+                    </Pressable>
                   </Card>
                 ))
               )}
@@ -863,6 +985,28 @@ export default function BudgetScreen() {
                   onPress={() => setGoalFrequency('manual')}
                 />
               </View>
+              {goalFrequency === 'monthly' ? (
+                <TextInput
+                  placeholder="Día del mes (1-31)"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={goalMonthDay}
+                  onChangeText={setGoalMonthDay}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {goalFrequency === 'weekly' ? (
+                <View style={styles.daysRow}>
+                  {WEEK_DAYS.map((day) => (
+                    <SelectableOption
+                      key={day.value}
+                      label={day.label}
+                      selected={goalWeekday === day.value}
+                      onPress={() => setGoalWeekday(day.value)}
+                    />
+                  ))}
+                </View>
+              ) : null}
               {goalFrequency === 'everyX' ? (
                 <TextInput
                   placeholder="Cada 30 días"
@@ -879,20 +1023,11 @@ export default function BudgetScreen() {
                   Resumen del plan
                 </ThemedText>
                 <ThemedText type="smallBold">
-                  {goalMode === 'percent'
-                    ? `Aportarás ${parseAmount(goalPercent) || 0}% ${formatFrequency(
-                        goalFrequency,
-                        parseAmount(goalEveryDays)
-                      )}`
-                    : goalMode === 'manual'
-                      ? `Aportes manuales (${formatFrequency(
-                          goalFrequency,
-                          parseAmount(goalEveryDays)
-                        )})`
-                      : `Aportarás ${formatCurrency(parseAmount(goalFixedAmount) || 0)} ${formatFrequency(
-                          goalFrequency,
-                          parseAmount(goalEveryDays)
-                        )}`}
+                  {goalMode === 'manual' || goalFrequency === 'manual'
+                    ? 'Aportes manuales'
+                    : goalMode === 'percent'
+                      ? `Aportarás ${parseAmount(goalPercent) || 0}% ${goalSchedulePreview}`
+                      : `Aportarás ${formatCurrency(parseAmount(goalFixedAmount) || 0)} ${goalSchedulePreview}`}
                 </ThemedText>
               </Card>
 
@@ -904,24 +1039,26 @@ export default function BudgetScreen() {
                   pressed && styles.buttonPressed,
                 ]}>
                 <ThemedText type="smallBold" style={styles.saveText}>
-                  {goalAddedDone ? 'Meta creada' : 'Agregar meta'}
+                  {goalAddedDone ? 'Meta guardada' : 'Guardar meta'}
                 </ThemedText>
               </Pressable>
             </Card>
           </View>
         ) : null}
 
-        <Pressable
-          onPress={handleSavePlan}
-          style={({ pressed }) => [
-            styles.mainSaveButton,
-            { backgroundColor: savePlanColor },
-            pressed && styles.buttonPressed,
-          ]}>
-          <ThemedText type="smallBold" style={styles.saveText}>
-            {savePlanDone ? 'Plan guardado' : 'Guardar plan'}
-          </ThemedText>
-        </Pressable>
+        {activeTab !== 'Metas' ? (
+          <Pressable
+            onPress={handleSavePlan}
+            style={({ pressed }) => [
+              styles.mainSaveButton,
+              { backgroundColor: savePlanColor },
+              pressed && styles.buttonPressed,
+            ]}>
+            <ThemedText type="smallBold" style={[styles.saveText, { color: savePlanTextColor }]}>
+              {savePlanDone ? 'Plan guardado' : 'Guardar plan'}
+            </ThemedText>
+          </Pressable>
+        ) : null}
       </Card>
     </Screen>
   );
@@ -969,6 +1106,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: 14,
     alignItems: 'center',
+  },
+  outlineButton: {
+    paddingVertical: Spacing.two,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   mainSaveButton: {
     marginTop: Spacing.three,

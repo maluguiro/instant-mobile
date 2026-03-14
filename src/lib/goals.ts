@@ -13,18 +13,22 @@ export type SavingsGoal = {
   percent: number;
   frequency: GoalFrequency;
   everyDays: number;
+  monthDay: number;
+  weekday: number;
   createdAt: string;
 };
 
 const defaultGoal: Pick<
   SavingsGoal,
-  'mode' | 'fixedAmount' | 'percent' | 'frequency' | 'everyDays'
+  'mode' | 'fixedAmount' | 'percent' | 'frequency' | 'everyDays' | 'monthDay' | 'weekday'
 > = {
   mode: 'manual',
   fixedAmount: 0,
   percent: 0,
   frequency: 'manual',
   everyDays: 30,
+  monthDay: 1,
+  weekday: 1,
 };
 
 function normalizeGoal(goal: SavingsGoal): SavingsGoal {
@@ -70,4 +74,11 @@ export async function contributeToGoal(
     ...goal,
     saved: goal.saved + delta,
   }));
+}
+
+export async function removeSavingsGoal(id: string): Promise<SavingsGoal[]> {
+  const items = await getSavingsGoals();
+  const next = items.filter((goal) => goal.id !== id);
+  await saveSavingsGoals(next);
+  return next;
 }

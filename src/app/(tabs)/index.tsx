@@ -1,6 +1,6 @@
 ﻿import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,16 +23,19 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
+import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       refresh();
       refreshSettings();
+      getSavingsGoals().then(setGoals);
     }, [refresh, refreshSettings])
   );
 
@@ -152,7 +155,7 @@ export default function HomeScreen() {
         <SectionHeader title="Tus focos" />
         <View style={styles.focusRow}>
           <Pressable
-            onPress={() => router.push('/savings-goals')}
+            onPress={() => router.push('/goals-overview')}
             style={({ pressed }) => [
               styles.focusCard,
               { backgroundColor: theme.brandSoft },
@@ -160,7 +163,7 @@ export default function HomeScreen() {
             ]}>
             <ThemedText type="smallBold">Metas de ahorro</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              3 metas activas
+              {goals.length > 0 ? `${goals.length} metas activas` : 'Creá tu primera meta'}
             </ThemedText>
           </Pressable>
           <Pressable
