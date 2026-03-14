@@ -12,35 +12,46 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { StatRow } from '@/components/ui/stat-row';
 import { quickActions } from '@/constants/mock-data';
 import {
+  calculateAvailable,
   calculateTotals,
   filterByMonth,
-  filterByWeek,
   formatCurrency,
   formatShortDate,
+  getWeeklyPlanAmount,
 } from '@/lib/finance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useFinanceSettings } from '@/hooks/use-finance-settings';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const { transactions, refresh } = useTransactions();
+  const { settings, refresh: refreshSettings } = useFinanceSettings();
 
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh])
+      refreshSettings();
+    }, [refresh, refreshSettings])
   );
 
-  const { monthlyTotals, weeklyTotals } = useMemo(() => {
+  const { monthTotals, monthAvailable } = useMemo(() => {
     const now = new Date();
     const monthTx = filterByMonth(transactions, now);
-    const weekTx = filterByWeek(transactions, now);
+    const totals = calculateTotals(monthTx);
+    const availability = calculateAvailable(totals, settings);
+
     return {
-      monthlyTotals: calculateTotals(monthTx),
-      weeklyTotals: calculateTotals(weekTx),
+      monthTotals: totals,
+      monthAvailable: availability,
     };
-  }, [transactions]);
+  }, [transactions, settings]);
+
+  const weeklyPlan = useMemo(
+    () => getWeeklyPlanAmount(settings, monthAvailable.available),
+    [settings, monthAvailable.available]
+  );
 
   const recent = transactions.slice(0, 3);
 
@@ -60,49 +71,59 @@ export default function HomeScreen() {
               Disponible mensual
             </ThemedText>
             <ThemedText type="title" style={styles.primaryValue}>
-              {formatCurrency(monthlyTotals.available)}
+              {formatCurrency(monthAvailable.available)}
             </ThemedText>
           </View>
           <Pill label="Disponible" tone="accent" />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
-          Ingresos menos egresos del mes actual
+          Ingresos menos egresos y ahorro reservado
         </ThemedText>
       </Card>
 
-      <Card style={styles.secondaryCard}>
-        <View style={styles.secondaryHeader}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Disponible semanal
+      <Pressable
+        onPress={() => router.push({ pathname: '/budget', params: { tab: 'Semanal' } })}
+        style={({ pressed }) => [pressed && styles.cardPressed]}>
+        <Card style={styles.secondaryCard}>
+          <View style={styles.secondaryHeader}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Disponible semanal
+            </ThemedText>
+            <Pill label="Plan semanal" />
+          </View>
+          <ThemedText type="subtitle" style={styles.secondaryValue}>
+            {settings.weeklyMode === 'manual'
+              ? weeklyPlan > 0
+                ? formatCurrency(weeklyPlan)
+                : 'Sin habilitar'
+              : formatCurrency(weeklyPlan)}
           </ThemedText>
-          <Pill label="Semana actual" />
-        </View>
-        <ThemedText type="subtitle" style={styles.secondaryValue}>
-          {formatCurrency(weeklyTotals.available)}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Ajustable según tus decisiones de hoy
-        </ThemedText>
-      </Card>
+          <ThemedText type="small" themeColor="textSecondary">
+            {settings.weeklyMode === 'manual'
+              ? 'Habilitás el disponible cuando lo necesitás'
+              : 'Monto fijo configurado'}
+          </ThemedText>
+        </Card>
+      </Pressable>
 
       <Card>
         <SectionHeader title="Resumen del mes" />
         <View style={styles.statsRow}>
           <StatRow
             label="Ingresos"
-            value={formatCurrency(monthlyTotals.income)}
+            value={formatCurrency(monthTotals.income)}
             tone="positive"
             style={styles.statItem}
           />
           <StatRow
             label="Egresos"
-            value={formatCurrency(monthlyTotals.expense)}
+            value={formatCurrency(monthTotals.expense)}
             tone="neutral"
             style={styles.statItem}
           />
           <StatRow
             label="Ahorro"
-            value={formatCurrency(monthlyTotals.savings)}
+            value={formatCurrency(monthAvailable.savingsTotal)}
             tone="positive"
             style={styles.statItem}
           />
@@ -216,6 +237,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  cardPressed: {
+    opacity: 0.92,
   },
   secondaryValue: {
     fontSize: 26,

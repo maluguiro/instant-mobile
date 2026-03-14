@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -24,7 +24,7 @@ export default function SettingsScreen() {
           <SectionHeader title={section.title} />
           <View style={styles.listGap}>
             {section.items.map((item) => (
-              <ListItem key={item} title={item} trailing="?" />
+              <ListItem key={item} title={item} trailing="→" />
             ))}
           </View>
         </Card>

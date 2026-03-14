@@ -1,0 +1,49 @@
+﻿import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+
+export type SavingsMode = 'fixed' | 'percent' | 'manual';
+export type SavingsFrequency = 'monthly' | 'weekly' | 'everyX' | 'manual';
+export type WeeklyMode = 'fixed' | 'auto' | 'manual';
+export type WeeklyRenewalMode = 'monday' | 'custom' | 'everyX' | 'manual';
+
+export type FinanceSettings = {
+  savingsMode: SavingsMode;
+  savingsFixed: number;
+  savingsPercent: number;
+  savingsFrequency: SavingsFrequency;
+  savingsEveryDays: number;
+  savingsMonthDay: number;
+  savingsWeekday: number; // 0-6, Monday = 1
+  weeklyMode: WeeklyMode;
+  weeklyAmount: number;
+  weeklyRenewal: WeeklyRenewalMode;
+  weeklyCustomDay: number; // 0-6, Monday = 1
+  weeklyEveryDays: number;
+  weeklyManualEnabledAmount: number;
+  weeklyManualEnabledAt: string | null;
+};
+
+export const defaultFinanceSettings: FinanceSettings = {
+  savingsMode: 'fixed',
+  savingsFixed: 0,
+  savingsPercent: 10,
+  savingsFrequency: 'monthly',
+  savingsEveryDays: 30,
+  savingsMonthDay: 1,
+  savingsWeekday: 1,
+  weeklyMode: 'fixed',
+  weeklyAmount: 0,
+  weeklyRenewal: 'monday',
+  weeklyCustomDay: 1,
+  weeklyEveryDays: 7,
+  weeklyManualEnabledAmount: 0,
+  weeklyManualEnabledAt: null,
+};
+
+export async function getFinanceSettings(): Promise<FinanceSettings> {
+  const stored = await getItem<Partial<FinanceSettings>>(STORAGE_KEYS.financeSettings, {});
+  return { ...defaultFinanceSettings, ...stored };
+}
+
+export async function saveFinanceSettings(settings: FinanceSettings): Promise<void> {
+  await setItem<FinanceSettings>(STORAGE_KEYS.financeSettings, settings);
+}

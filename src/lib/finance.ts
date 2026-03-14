@@ -1,4 +1,5 @@
-﻿import { Transaction } from '@/lib/types';
+﻿import { FinanceSettings } from '@/lib/finance-settings';
+import { Transaction } from '@/lib/types';
 
 export function parseDateInput(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
@@ -79,11 +80,11 @@ export function isSavingsCategory(category: string): boolean {
 export function calculateTotals(transactions: Transaction[]) {
   let income = 0;
   let expense = 0;
-  let savings = 0;
+  let savingsManual = 0;
 
   for (const tx of transactions) {
     if (isSavingsCategory(tx.category)) {
-      savings += tx.type === 'income' ? tx.amount : -tx.amount;
+      savingsManual += Math.abs(tx.amount);
       continue;
     }
 
@@ -97,9 +98,57 @@ export function calculateTotals(transactions: Transaction[]) {
   return {
     income,
     expense,
-    savings,
-    available: income - expense,
+    savingsManual,
   };
+}
+
+export function calculateSavingsReserved(
+  totals: { income: number },
+  settings: FinanceSettings
+): number {
+  if (settings.savingsMode === 'manual') {
+    return 0;
+  }
+
+  if (settings.savingsMode === 'percent') {
+    return Math.max(0, (totals.income * settings.savingsPercent) / 100);
+  }
+
+  const frequencyMultiplier =
+    settings.savingsFrequency === 'weekly'
+      ? 4
+      : settings.savingsFrequency === 'everyX'
+        ? 30 / Math.max(settings.savingsEveryDays, 1)
+        : settings.savingsFrequency === 'manual'
+          ? 0
+          : 1;
+
+  return Math.max(0, settings.savingsFixed * frequencyMultiplier);
+}
+
+export function calculateAvailable(
+  totals: { income: number; expense: number; savingsManual: number },
+  settings: FinanceSettings
+) {
+  const savingsReserved = calculateSavingsReserved(totals, settings);
+  const savingsTotal = savingsReserved + totals.savingsManual;
+  const available = totals.income - totals.expense - savingsTotal;
+
+  return {
+    savingsReserved,
+    savingsTotal,
+    available,
+  };
+}
+
+export function getWeeklyPlanAmount(settings: FinanceSettings, monthlyAvailable: number) {
+  if (settings.weeklyMode === 'auto') {
+    return Math.max(monthlyAvailable / 4, 0);
+  }
+  if (settings.weeklyMode === 'manual') {
+    return Math.max(settings.weeklyManualEnabledAmount, 0);
+  }
+  return Math.max(settings.weeklyAmount, 0);
 }
 
 export function filterByMonth(transactions: Transaction[], reference: Date): Transaction[] {

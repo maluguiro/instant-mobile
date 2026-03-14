@@ -3,6 +3,9 @@
 export const STORAGE_KEYS = {
   onboardingSeen: 'instant:onboarding_seen',
   transactions: 'instant:transactions',
+  paymentMethods: 'instant:payment_methods',
+  financeSettings: 'instant:finance_settings',
+  savingsGoals: 'instant:savings_goals',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {

@@ -1,149 +1,927 @@
-﻿import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+﻿
+import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { SelectableOption } from '@/components/ui/selectable-option';
+import { Spacing } from '@/constants/theme';
+import { useFinanceSettings } from '@/hooks/use-finance-settings';
+import { useTheme } from '@/hooks/use-theme';
+import { useTransactions } from '@/hooks/use-transactions';
 import {
+  calculateAvailable,
+  calculateSavingsReserved,
   calculateTotals,
   filterByMonth,
   filterByWeek,
   formatCurrency,
-  summarizeByCategory,
+  getWeeklyPlanAmount,
+  isSavingsCategory,
+  toISODate,
 } from '@/lib/finance';
-import { useTransactions } from '@/hooks/use-transactions';
-import { Spacing } from '@/constants/theme';
+import { SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
+import {
+  addSavingsGoal,
+  contributeToGoal,
+  GoalContributionMode,
+  GoalFrequency,
+  getSavingsGoals,
+  SavingsGoal,
+} from '@/lib/goals';
 
-const CATEGORY_LIMITS: Record<string, number> = {
-  Hogar: 120000,
-  Comida: 80000,
-  Transporte: 50000,
-  Movilidad: 50000,
-  Ocio: 30000,
-  Servicios: 35000,
-  Salud: 30000,
+const TABS = ['Ahorro', 'Semanal', 'Metas'] as const;
+type Tab = (typeof TABS)[number];
+
+const WEEK_DAYS = [
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mié' },
+  { value: 4, label: 'Jue' },
+  { value: 5, label: 'Vie' },
+  { value: 6, label: 'Sáb' },
+  { value: 0, label: 'Dom' },
+];
+
+const WEEK_DAY_LABELS: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miércoles',
+  4: 'Jueves',
+  5: 'Viernes',
+  6: 'Sábado',
 };
 
+function parseAmount(value: string): number {
+  const normalized = value.replace(/[^0-9,.-]/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function formatFrequency(frequency: GoalFrequency | SavingsFrequency, everyDays: number) {
+  if (frequency === 'weekly') return 'semanal';
+  if (frequency === 'everyX') return `cada ${Math.max(everyDays, 1)} días`;
+  if (frequency === 'manual') return 'manual';
+  return 'mensual';
+}
+
+function formatSavingsSchedule(
+  frequency: SavingsFrequency,
+  monthDay: number,
+  weekday: number,
+  everyDays: number
+) {
+  if (frequency === 'weekly') {
+    return `cada ${WEEK_DAY_LABELS[weekday] ?? 'semana'}`;
+  }
+  if (frequency === 'everyX') {
+    return `cada ${Math.max(everyDays, 1)} días`;
+  }
+  if (frequency === 'manual') {
+    return 'manual';
+  }
+  return `cada ${Math.max(monthDay, 1)} del mes`;
+}
+
+function formatWeeklyRenewal(
+  renewal: WeeklyRenewalMode,
+  customDay: number,
+  everyDays: number
+) {
+  if (renewal === 'custom') return `cada ${WEEK_DAY_LABELS[customDay] ?? 'día'}`;
+  if (renewal === 'everyX') return `cada ${Math.max(everyDays, 1)} días`;
+  if (renewal === 'manual') return 'manual';
+  return 'cada lunes';
+}
+
+function formatGoalPlan(goal: SavingsGoal) {
+  if (goal.mode === 'percent') {
+    return `${goal.percent}% ${formatFrequency(goal.frequency, goal.everyDays)}`;
+  }
+  if (goal.mode === 'manual') {
+    return `Manual · ${formatFrequency(goal.frequency, goal.everyDays)}`;
+  }
+  return `${formatCurrency(goal.fixedAmount)} ${formatFrequency(goal.frequency, goal.everyDays)}`;
+}
+
 export default function BudgetScreen() {
-  const { transactions, refresh } = useTransactions();
+  const theme = useTheme();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const { settings, refresh, update } = useFinanceSettings();
+  const { transactions, refresh: refreshTransactions, add } = useTransactions();
+
+  const [activeTab, setActiveTab] = useState<Tab>('Ahorro');
+
+  const [savingsMode, setSavingsMode] = useState(settings.savingsMode);
+  const [savingsFixed, setSavingsFixed] = useState(String(settings.savingsFixed));
+  const [savingsPercent, setSavingsPercent] = useState(String(settings.savingsPercent));
+  const [savingsFrequency, setSavingsFrequency] = useState(settings.savingsFrequency);
+  const [savingsEveryDays, setSavingsEveryDays] = useState(String(settings.savingsEveryDays));
+  const [savingsMonthDay, setSavingsMonthDay] = useState(String(settings.savingsMonthDay));
+  const [savingsWeekday, setSavingsWeekday] = useState(settings.savingsWeekday);
+  const [savingsManualAmount, setSavingsManualAmount] = useState('');
+
+  const [weeklyMode, setWeeklyMode] = useState(settings.weeklyMode);
+  const [weeklyAmount, setWeeklyAmount] = useState(String(settings.weeklyAmount));
+  const [weeklyRenewal, setWeeklyRenewal] = useState<WeeklyRenewalMode>(settings.weeklyRenewal);
+  const [weeklyCustomDay, setWeeklyCustomDay] = useState(settings.weeklyCustomDay);
+  const [weeklyEveryDays, setWeeklyEveryDays] = useState(String(settings.weeklyEveryDays));
+  const [weeklyManualAmount, setWeeklyManualAmount] = useState('');
+
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalTarget, setGoalTarget] = useState('');
+  const [goalSaved, setGoalSaved] = useState('');
+  const [goalMode, setGoalMode] = useState<GoalContributionMode>('fixed');
+  const [goalFixedAmount, setGoalFixedAmount] = useState('');
+  const [goalPercent, setGoalPercent] = useState('');
+  const [goalFrequency, setGoalFrequency] = useState<GoalFrequency>('monthly');
+  const [goalEveryDays, setGoalEveryDays] = useState('30');
+  const [goalContribution, setGoalContribution] = useState<Record<string, string>>({});
+
+  const [savePlanDone, setSavePlanDone] = useState(false);
+  const [goalAddedDone, setGoalAddedDone] = useState(false);
+  const [manualSavingsDone, setManualSavingsDone] = useState(false);
+  const [weeklyManualDone, setWeeklyManualDone] = useState(false);
+  const [goalContributionDone, setGoalContributionDone] = useState<Record<string, boolean>>({});
 
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh])
+      refreshTransactions();
+      getSavingsGoals().then(setGoals);
+    }, [refresh, refreshTransactions])
   );
 
-  const { monthTotals, weekTotals, categories } = useMemo(() => {
-    const now = new Date();
-    const monthTx = filterByMonth(transactions, now);
-    const weekTx = filterByWeek(transactions, now);
-    const monthTotals = calculateTotals(monthTx);
-    const weekTotals = calculateTotals(weekTx);
-    const categories = summarizeByCategory(monthTx)
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6);
+  useEffect(() => {
+    setSavingsMode(settings.savingsMode);
+    setSavingsFixed(String(settings.savingsFixed));
+    setSavingsPercent(String(settings.savingsPercent));
+    setSavingsFrequency(settings.savingsFrequency);
+    setSavingsEveryDays(String(settings.savingsEveryDays));
+    setSavingsMonthDay(String(settings.savingsMonthDay));
+    setSavingsWeekday(settings.savingsWeekday);
+    setWeeklyMode(settings.weeklyMode === 'auto' ? 'fixed' : settings.weeklyMode);
+    setWeeklyAmount(String(settings.weeklyAmount));
+    setWeeklyRenewal(settings.weeklyRenewal);
+    setWeeklyCustomDay(settings.weeklyCustomDay);
+    setWeeklyEveryDays(String(settings.weeklyEveryDays));
+  }, [settings]);
 
-    return { monthTotals, weekTotals, categories };
-  }, [transactions]);
+  useEffect(() => {
+    const tabParam = params.tab;
+    if (typeof tabParam === 'string' && TABS.includes(tabParam as Tab)) {
+      setActiveTab(tabParam as Tab);
+    }
+  }, [params.tab]);
 
-  const progress = monthTotals.income
-    ? Math.min(monthTotals.expense / monthTotals.income, 1)
-    : 0;
+  const monthTransactions = useMemo(
+    () => filterByMonth(transactions, new Date()),
+    [transactions]
+  );
+  const weekTransactions = useMemo(
+    () => filterByWeek(transactions, new Date()),
+    [transactions]
+  );
+
+  const totals = useMemo(() => calculateTotals(monthTransactions), [monthTransactions]);
+  const monthAvailable = useMemo(() => calculateAvailable(totals, settings), [totals, settings]);
+
+  const weeklyEnabled = useMemo(() => {
+    if (settings.weeklyMode === 'manual') {
+      return Math.max(settings.weeklyManualEnabledAmount, 0);
+    }
+    return getWeeklyPlanAmount(settings, monthAvailable.available);
+  }, [settings, monthAvailable.available]);
+
+  const weeklyUsed = useMemo(
+    () =>
+      weekTransactions.reduce((acc, tx) => {
+        if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
+        return acc + tx.amount;
+      }, 0),
+    [weekTransactions]
+  );
+
+  const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
+
+  const savingsSuggested = useMemo(() => {
+    if (savingsMode === 'percent') {
+      return Math.max(0, (totals.income * (parseAmount(savingsPercent) || 0)) / 100);
+    }
+    if (savingsMode === 'fixed') {
+      return Math.max(parseAmount(savingsFixed), 0);
+    }
+    return 0;
+  }, [savingsMode, savingsPercent, savingsFixed, totals.income]);
+
+  useEffect(() => {
+    if (savingsFrequency === 'manual') {
+      setSavingsManualAmount((prev) =>
+        prev.trim() ? prev : savingsSuggested > 0 ? String(Math.round(savingsSuggested)) : ''
+      );
+    }
+  }, [savingsFrequency, savingsSuggested]);
+
+  useEffect(() => {
+    if (weeklyRenewal === 'manual') {
+      setWeeklyManualAmount((prev) =>
+        prev.trim() ? prev : parseAmount(weeklyAmount) > 0 ? weeklyAmount : ''
+      );
+    }
+  }, [weeklyRenewal, weeklyAmount]);
+
+  const savingsSummary = useMemo(() => {
+    const frequencyLabel = formatSavingsSchedule(
+      savingsFrequency,
+      parseAmount(savingsMonthDay),
+      savingsWeekday,
+      parseAmount(savingsEveryDays)
+    );
+    if (savingsMode === 'percent') {
+      return `Se reservará el ${parseAmount(savingsPercent) || 0}% de tus ingresos (${frequencyLabel})`;
+    }
+    if (savingsMode === 'manual') {
+      return `Reservas manuales (${frequencyLabel})`;
+    }
+    return `Se reservarán ${formatCurrency(parseAmount(savingsFixed) || 0)} (${frequencyLabel})`;
+  }, [
+    savingsMode,
+    savingsFixed,
+    savingsPercent,
+    savingsFrequency,
+    savingsEveryDays,
+    savingsMonthDay,
+    savingsWeekday,
+  ]);
+
+  const weeklySummary = useMemo(() => {
+    if (weeklyMode === 'manual') {
+      return 'Plan manual con habilitación puntual.';
+    }
+    return `Plan semanal de ${formatCurrency(parseAmount(weeklyAmount) || 0)}.`;
+  }, [weeklyMode, weeklyAmount]);
+
+  const goalSummary = useMemo(() => {
+    const totalTarget = goals.reduce((acc, goal) => acc + goal.target, 0);
+    const totalSaved = goals.reduce((acc, goal) => acc + goal.saved, 0);
+    return { totalTarget, totalSaved };
+  }, [goals]);
+
+  const handleSavePlan = async () => {
+    const fixed = Math.max(parseAmount(savingsFixed), 0);
+    const percent = Math.max(parseAmount(savingsPercent), 0);
+    const weekly = Math.max(parseAmount(weeklyAmount), 0);
+    const everyDays = Math.max(parseAmount(savingsEveryDays), 1);
+    const weeklyEvery = Math.max(parseAmount(weeklyEveryDays), 1);
+
+    await update({
+      ...settings,
+      savingsMode,
+      savingsFixed: fixed,
+      savingsPercent: percent,
+      savingsFrequency,
+      savingsEveryDays: everyDays,
+      savingsMonthDay: Math.max(parseAmount(savingsMonthDay), 1),
+      savingsWeekday,
+      weeklyMode,
+      weeklyAmount: weekly,
+      weeklyRenewal,
+      weeklyCustomDay,
+      weeklyEveryDays: weeklyEvery,
+    });
+
+    setSavePlanDone(true);
+    setTimeout(() => setSavePlanDone(false), 1400);
+  };
+
+  const handleManualSavings = async () => {
+    const amount = Math.max(parseAmount(savingsManualAmount), 0);
+    if (!amount) return;
+    await add({
+      id: String(Date.now()),
+      type: 'expense',
+      amount,
+      category: 'Ahorro',
+      date: toISODate(new Date()),
+      method: 'Ahorro',
+      createdAt: new Date().toISOString(),
+    });
+    setSavingsManualAmount('');
+    setManualSavingsDone(true);
+    setTimeout(() => setManualSavingsDone(false), 1400);
+  };
+
+  const handleManualWeeklyEnable = async () => {
+    const amount = Math.max(parseAmount(weeklyManualAmount), 0);
+    if (!amount) return;
+    await update({
+      ...settings,
+      weeklyManualEnabledAmount: amount,
+      weeklyManualEnabledAt: new Date().toISOString(),
+    });
+    setWeeklyManualAmount('');
+    setWeeklyManualDone(true);
+    setTimeout(() => setWeeklyManualDone(false), 1400);
+  };
+
+  const handleAddGoal = async () => {
+    const title = goalTitle.trim();
+    const target = Math.max(parseAmount(goalTarget), 0);
+    const saved = Math.max(parseAmount(goalSaved), 0);
+    if (!title || !target) return;
+
+    const goal: SavingsGoal = {
+      id: String(Date.now()),
+      title,
+      target,
+      saved,
+      mode: goalMode,
+      fixedAmount: Math.max(parseAmount(goalFixedAmount), 0),
+      percent: Math.max(parseAmount(goalPercent), 0),
+      frequency: goalFrequency,
+      everyDays: Math.max(parseAmount(goalEveryDays), 1),
+      createdAt: new Date().toISOString(),
+    };
+
+    const next = await addSavingsGoal(goal);
+    setGoals(next);
+    setGoalTitle('');
+    setGoalTarget('');
+    setGoalSaved('');
+    setGoalFixedAmount('');
+    setGoalPercent('');
+    setGoalEveryDays('30');
+    setGoalAddedDone(true);
+    setTimeout(() => setGoalAddedDone(false), 1400);
+  };
+
+  const handleContributeToGoal = async (goalId: string) => {
+    const amount = Math.max(parseAmount(goalContribution[goalId] ?? ''), 0);
+    if (!amount) return;
+    const next = await contributeToGoal(goalId, amount);
+    setGoals(next);
+    setGoalContribution((prev) => ({ ...prev, [goalId]: '' }));
+    setGoalContributionDone((prev) => ({ ...prev, [goalId]: true }));
+    setTimeout(
+      () => setGoalContributionDone((prev) => ({ ...prev, [goalId]: false })),
+      1400
+    );
+  };
+
+  const savingsTarget = calculateSavingsReserved(totals, settings);
+  const savingsProgressTarget = savingsTarget > 0 ? savingsTarget : monthAvailable.savingsTotal;
+  const savingsProgressValue =
+    savingsProgressTarget > 0 ? monthAvailable.savingsTotal / savingsProgressTarget : 0;
+  const savePlanColor = savePlanDone ? theme.accent : theme.brand;
 
   return (
     <Screen>
       <View style={styles.header}>
         <ThemedText type="subtitle">Presupuesto</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Mirá cómo se distribuye tu mes y cuánto queda disponible.
+          Organizá tu plan financiero con calma y claridad.
         </ThemedText>
       </View>
 
       <Card>
-        <SectionHeader title="Panorama mensual" />
-        <View style={styles.overviewGrid}>
-          <View style={styles.overviewItem}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Ingresos del mes
-            </ThemedText>
-            <ThemedText type="smallBold" style={styles.overviewValue}>
-              {formatCurrency(monthTotals.income)}
-            </ThemedText>
-          </View>
-          <View style={styles.overviewItem}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Egresos del mes
-            </ThemedText>
-            <ThemedText type="smallBold" style={styles.overviewValue}>
-              {formatCurrency(monthTotals.expense)}
-            </ThemedText>
-          </View>
-          <View style={styles.overviewItem}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Ahorro
-            </ThemedText>
-            <ThemedText type="smallBold" style={styles.overviewValue}>
-              {formatCurrency(monthTotals.savings)}
-            </ThemedText>
-          </View>
-          <View style={styles.overviewItem}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Disponible mensual
-            </ThemedText>
-            <ThemedText type="smallBold" style={styles.overviewValue}>
-              {formatCurrency(monthTotals.available)}
-            </ThemedText>
-          </View>
+        <SectionHeader title="Planificación" />
+        <View style={styles.tabRow}>
+          {TABS.map((tab) => (
+            <SelectableOption
+              key={tab}
+              label={tab}
+              selected={activeTab === tab}
+              onPress={() => setActiveTab(tab)}
+            />
+          ))}
         </View>
-        <View style={styles.progressRow}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Progreso del mes
-          </ThemedText>
-          <ThemedText type="smallBold">
-            {Math.round(progress * 100)}%
-          </ThemedText>
-        </View>
-        <ProgressBar value={progress} />
-      </Card>
 
-      <Card variant="soft">
-        <SectionHeader title="Disponible semanal" />
-        <ThemedText type="subtitle" style={styles.weekValue}>
-          {formatCurrency(weekTotals.available)}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Semana actual · Ajustable según tus movimientos
-        </ThemedText>
-      </Card>
+        {activeTab === 'Ahorro' ? (
+          <View style={styles.sectionBody}>
+            <Card variant="soft" style={styles.innerCard}>
+              <SectionHeader title="Modo de ahorro" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Monto fijo"
+                  selected={savingsMode === 'fixed'}
+                  onPress={() => setSavingsMode('fixed')}
+                />
+                <SelectableOption
+                  label="Porcentaje"
+                  selected={savingsMode === 'percent'}
+                  onPress={() => setSavingsMode('percent')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={savingsMode === 'manual'}
+                  onPress={() => setSavingsMode('manual')}
+                />
+              </View>
+              {savingsMode === 'fixed' ? (
+                <TextInput
+                  placeholder="$0"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={savingsFixed}
+                  onChangeText={setSavingsFixed}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {savingsMode === 'percent' ? (
+                <TextInput
+                  placeholder="0%"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={savingsPercent}
+                  onChangeText={setSavingsPercent}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {savingsMode === 'manual' ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Vas a reservar ahorro cuando lo decidas.
+                </ThemedText>
+              ) : null}
+            </Card>
 
-      <Card>
-        <SectionHeader title="Categorías" />
-        {categories.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            Todavía no hay gastos categorizados este mes.
-          </ThemedText>
-        ) : (
-          <View style={styles.categories}>
-            {categories.map((category) => {
-              const limit = CATEGORY_LIMITS[category.category] ?? 50000;
-              const progressValue = Math.min(category.amount / limit, 1);
-              return (
-                <View key={category.category} style={styles.categoryRow}>
-                  <View style={styles.categoryHeader}>
-                    <ThemedText>{category.category}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {formatCurrency(category.amount)} / {formatCurrency(limit)}
-                    </ThemedText>
-                  </View>
-                  <ProgressBar value={progressValue} />
+            <Card variant="soft" style={styles.innerCard}>
+              <SectionHeader title="Frecuencia" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Mensual"
+                  selected={savingsFrequency === 'monthly'}
+                  onPress={() => setSavingsFrequency('monthly')}
+                />
+                <SelectableOption
+                  label="Semanal"
+                  selected={savingsFrequency === 'weekly'}
+                  onPress={() => setSavingsFrequency('weekly')}
+                />
+                <SelectableOption
+                  label="Cada X días"
+                  selected={savingsFrequency === 'everyX'}
+                  onPress={() => setSavingsFrequency('everyX')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={savingsFrequency === 'manual'}
+                  onPress={() => setSavingsFrequency('manual')}
+                />
+              </View>
+              {savingsFrequency === 'monthly' ? (
+                <TextInput
+                  placeholder="Día del mes (1-31)"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={savingsMonthDay}
+                  onChangeText={setSavingsMonthDay}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {savingsFrequency === 'weekly' ? (
+                <View style={styles.daysRow}>
+                  {WEEK_DAYS.map((day) => (
+                    <SelectableOption
+                      key={day.value}
+                      label={day.label}
+                      selected={savingsWeekday === day.value}
+                      onPress={() => setSavingsWeekday(day.value)}
+                    />
+                  ))}
                 </View>
-              );
-            })}
+              ) : null}
+              {savingsFrequency === 'everyX' ? (
+                <TextInput
+                  placeholder="Cada 30 días"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={savingsEveryDays}
+                  onChangeText={setSavingsEveryDays}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {savingsFrequency === 'manual' ? (
+                <View style={styles.manualAction}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    El ahorro no se debita automáticamente. Vos decidís cuándo reservarlo.
+                  </ThemedText>
+                  <TextInput
+                    placeholder="Monto sugerido"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                    value={savingsManualAmount}
+                    onChangeText={setSavingsManualAmount}
+                    keyboardType="numeric"
+                  />
+                  <Pressable
+                    onPress={handleManualSavings}
+                    style={({ pressed }) => [
+                      styles.actionButton,
+                      { backgroundColor: theme.brand },
+                      pressed && styles.buttonPressed,
+                    ]}>
+                    <ThemedText type="smallBold" style={styles.saveText}>
+                      {manualSavingsDone ? 'Registrado' : 'Debitar para ahorro'}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              ) : null}
+            </Card>
+
+            <Card variant="soft" style={styles.summaryCard}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Resumen actual
+              </ThemedText>
+              <ThemedText type="smallBold">{savingsSummary}</ThemedText>
+            </Card>
+
+            <Card variant="soft" style={styles.summaryCard}>
+              <View style={styles.progressHeader}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Progreso del ahorro
+                </ThemedText>
+                <ThemedText type="smallBold">
+                  {formatCurrency(monthAvailable.savingsTotal)}
+                </ThemedText>
+              </View>
+              <ProgressBar value={savingsProgressValue} />
+              <ThemedText type="small" themeColor="textSecondary">
+                Reservado este período: {formatCurrency(monthAvailable.savingsReserved)}
+              </ThemedText>
+            </Card>
           </View>
-        )}
+        ) : null}
+
+        {activeTab === 'Semanal' ? (
+          <View style={styles.sectionBody}>
+            <Card variant="soft" style={styles.innerCard}>
+              <SectionHeader title="Modo semanal" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Monto fijo"
+                  selected={weeklyMode === 'fixed'}
+                  onPress={() => setWeeklyMode('fixed')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={weeklyMode === 'manual'}
+                  onPress={() => setWeeklyMode('manual')}
+                />
+              </View>
+              {weeklyMode === 'fixed' ? (
+                <TextInput
+                  placeholder="$0"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={weeklyAmount}
+                  onChangeText={setWeeklyAmount}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {weeklyMode === 'manual' ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  La app no habilita automáticamente el monto semanal. Vos decidís cuándo activarlo.
+                </ThemedText>
+              ) : null}
+            </Card>
+
+            <Card variant="soft" style={styles.innerCard}>
+              <SectionHeader title="Renovación" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Cada lunes"
+                  selected={weeklyRenewal === 'monday'}
+                  onPress={() => setWeeklyRenewal('monday')}
+                />
+                <SelectableOption
+                  label="Día personalizado"
+                  selected={weeklyRenewal === 'custom'}
+                  onPress={() => setWeeklyRenewal('custom')}
+                />
+                <SelectableOption
+                  label="Cada X días"
+                  selected={weeklyRenewal === 'everyX'}
+                  onPress={() => setWeeklyRenewal('everyX')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={weeklyRenewal === 'manual'}
+                  onPress={() => setWeeklyRenewal('manual')}
+                />
+              </View>
+              {weeklyRenewal === 'custom' ? (
+                <View style={styles.daysRow}>
+                  {WEEK_DAYS.map((day) => (
+                    <SelectableOption
+                      key={day.value}
+                      label={day.label}
+                      selected={weeklyCustomDay === day.value}
+                      onPress={() => setWeeklyCustomDay(day.value)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              {weeklyRenewal === 'everyX' ? (
+                <TextInput
+                  placeholder="Cada 7 días"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={weeklyEveryDays}
+                  onChangeText={setWeeklyEveryDays}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {(weeklyRenewal === 'manual' || weeklyMode === 'manual') && (
+                <View style={styles.manualAction}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Habilitá el disponible semanal cuando quieras usarlo.
+                  </ThemedText>
+                  <TextInput
+                    placeholder="Monto a habilitar"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                    value={weeklyManualAmount}
+                    onChangeText={setWeeklyManualAmount}
+                    keyboardType="numeric"
+                  />
+                  <Pressable
+                    onPress={handleManualWeeklyEnable}
+                    style={({ pressed }) => [
+                      styles.actionButton,
+                      { backgroundColor: theme.brand },
+                      pressed && styles.buttonPressed,
+                    ]}>
+                    <ThemedText type="smallBold" style={styles.saveText}>
+                      {weeklyManualDone ? 'Habilitado' : 'Habilitar disponible semanal'}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              )}
+            </Card>
+
+            <Card variant="soft" style={styles.summaryCard}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Resumen actual
+              </ThemedText>
+              <ThemedText type="smallBold">{weeklySummary}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Renovación: {formatWeeklyRenewal(weeklyRenewal, weeklyCustomDay, parseAmount(weeklyEveryDays))}
+              </ThemedText>
+            </Card>
+
+            <Card variant="soft" style={styles.summaryCard}>
+              <View style={styles.progressHeader}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Disponible semanal
+                </ThemedText>
+                <ThemedText type="smallBold">{formatCurrency(weeklyEnabled)}</ThemedText>
+              </View>
+              <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />
+              <View style={styles.progressRow}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Usado: {formatCurrency(weeklyUsed)}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Restante: {formatCurrency(weeklyRemaining)}
+                </ThemedText>
+              </View>
+            </Card>
+          </View>
+        ) : null}
+
+        {activeTab === 'Metas' ? (
+          <View style={styles.sectionBody}>
+            <Card variant="soft" style={styles.summaryCard}>
+              <View style={styles.goalSummaryRow}>
+                <View>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Metas activas
+                  </ThemedText>
+                  <ThemedText type="smallBold">{goals.length}</ThemedText>
+                </View>
+                <View>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Total asignado
+                  </ThemedText>
+                  <ThemedText type="smallBold">
+                    {formatCurrency(goalSummary.totalTarget)}
+                  </ThemedText>
+                </View>
+                <View>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Ahorrado
+                  </ThemedText>
+                  <ThemedText type="smallBold">
+                    {formatCurrency(goalSummary.totalSaved)}
+                  </ThemedText>
+                </View>
+              </View>
+            </Card>
+
+            <View style={styles.goalsStack}>
+              {goals.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Todavía no creaste metas de ahorro.
+                </ThemedText>
+              ) : (
+                goals.map((goal) => (
+                  <Card key={goal.id} variant="soft" style={styles.goalCard}>
+                    <View style={styles.goalHeader}>
+                      <ThemedText type="smallBold">{goal.title}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {formatCurrency(goal.saved)} / {formatCurrency(goal.target)}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {formatGoalPlan(goal)}
+                    </ThemedText>
+                    <ProgressBar value={goal.target ? goal.saved / goal.target : 0} />
+                    {goal.mode === 'manual' || goal.frequency === 'manual' ? (
+                      <View style={styles.goalAction}>
+                        <TextInput
+                          placeholder="Monto a aportar"
+                          placeholderTextColor={theme.textSecondary}
+                          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                          value={goalContribution[goal.id] ?? ''}
+                          onChangeText={(value) =>
+                            setGoalContribution((prev) => ({ ...prev, [goal.id]: value }))
+                          }
+                          keyboardType="numeric"
+                        />
+                        <Pressable
+                          onPress={() => handleContributeToGoal(goal.id)}
+                          style={({ pressed }) => [
+                            styles.actionButton,
+                            { backgroundColor: theme.brand },
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <ThemedText type="smallBold" style={styles.saveText}>
+                            {goalContributionDone[goal.id] ? 'Aporte listo' : 'Aportar a meta'}
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </Card>
+                ))
+              )}
+            </View>
+
+            <Card variant="soft" style={styles.goalForm}>
+              <SectionHeader title="Agregar meta" />
+              <TextInput
+                placeholder="Nombre de la meta"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={goalTitle}
+                onChangeText={setGoalTitle}
+              />
+              <TextInput
+                placeholder="Monto objetivo"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={goalTarget}
+                onChangeText={setGoalTarget}
+                keyboardType="numeric"
+              />
+              <TextInput
+                placeholder="Monto actual (opcional)"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={goalSaved}
+                onChangeText={setGoalSaved}
+                keyboardType="numeric"
+              />
+
+              <View style={styles.separator} />
+
+              <SectionHeader title="Modo de aporte" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Monto fijo"
+                  selected={goalMode === 'fixed'}
+                  onPress={() => setGoalMode('fixed')}
+                />
+                <SelectableOption
+                  label="Porcentaje"
+                  selected={goalMode === 'percent'}
+                  onPress={() => setGoalMode('percent')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={goalMode === 'manual'}
+                  onPress={() => setGoalMode('manual')}
+                />
+              </View>
+              {goalMode === 'fixed' ? (
+                <TextInput
+                  placeholder="$0"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={goalFixedAmount}
+                  onChangeText={setGoalFixedAmount}
+                  keyboardType="numeric"
+                />
+              ) : null}
+              {goalMode === 'percent' ? (
+                <TextInput
+                  placeholder="0%"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={goalPercent}
+                  onChangeText={setGoalPercent}
+                  keyboardType="numeric"
+                />
+              ) : null}
+
+              <SectionHeader title="Frecuencia" />
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Mensual"
+                  selected={goalFrequency === 'monthly'}
+                  onPress={() => setGoalFrequency('monthly')}
+                />
+                <SelectableOption
+                  label="Semanal"
+                  selected={goalFrequency === 'weekly'}
+                  onPress={() => setGoalFrequency('weekly')}
+                />
+                <SelectableOption
+                  label="Cada X días"
+                  selected={goalFrequency === 'everyX'}
+                  onPress={() => setGoalFrequency('everyX')}
+                />
+                <SelectableOption
+                  label="Manual"
+                  selected={goalFrequency === 'manual'}
+                  onPress={() => setGoalFrequency('manual')}
+                />
+              </View>
+              {goalFrequency === 'everyX' ? (
+                <TextInput
+                  placeholder="Cada 30 días"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={goalEveryDays}
+                  onChangeText={setGoalEveryDays}
+                  keyboardType="numeric"
+                />
+              ) : null}
+
+              <Card variant="soft" style={styles.summaryCard}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Resumen del plan
+                </ThemedText>
+                <ThemedText type="smallBold">
+                  {goalMode === 'percent'
+                    ? `Aportarás ${parseAmount(goalPercent) || 0}% ${formatFrequency(
+                        goalFrequency,
+                        parseAmount(goalEveryDays)
+                      )}`
+                    : goalMode === 'manual'
+                      ? `Aportes manuales (${formatFrequency(
+                          goalFrequency,
+                          parseAmount(goalEveryDays)
+                        )})`
+                      : `Aportarás ${formatCurrency(parseAmount(goalFixedAmount) || 0)} ${formatFrequency(
+                          goalFrequency,
+                          parseAmount(goalEveryDays)
+                        )}`}
+                </ThemedText>
+              </Card>
+
+              <Pressable
+                onPress={handleAddGoal}
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  { backgroundColor: theme.brand },
+                  pressed && styles.buttonPressed,
+                ]}>
+                <ThemedText type="smallBold" style={styles.saveText}>
+                  {goalAddedDone ? 'Meta creada' : 'Agregar meta'}
+                </ThemedText>
+              </Pressable>
+            </Card>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={handleSavePlan}
+          style={({ pressed }) => [
+            styles.mainSaveButton,
+            { backgroundColor: savePlanColor },
+            pressed && styles.buttonPressed,
+          ]}>
+          <ThemedText type="smallBold" style={styles.saveText}>
+            {savePlanDone ? 'Plan guardado' : 'Guardar plan'}
+          </ThemedText>
+        </Pressable>
       </Card>
     </Screen>
   );
@@ -153,41 +931,107 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
   },
-  overviewGrid: {
+  tabRow: {
     marginTop: Spacing.three,
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  sectionBody: {
+    marginTop: Spacing.three,
     gap: Spacing.three,
   },
-  overviewItem: {
-    minWidth: 140,
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  summaryCard: {
+    padding: Spacing.three,
     gap: Spacing.one,
   },
-  overviewValue: {
-    fontSize: 18,
+  innerCard: {
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  manualAction: {
+    gap: Spacing.two,
+  },
+  actionButton: {
+    paddingVertical: Spacing.two,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  mainSaveButton: {
+    marginTop: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  saveButton: {
+    paddingVertical: Spacing.three,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  saveText: {
+    color: '#ffffff',
+  },
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   progressRow: {
-    marginTop: Spacing.three,
-    marginBottom: Spacing.two,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.two,
   },
-  weekValue: {
-    fontSize: 26,
-    lineHeight: 32,
+  goalSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
-  categories: {
-    marginTop: Spacing.three,
+  goalsStack: {
     gap: Spacing.three,
   },
-  categoryRow: {
+  goalCard: {
     gap: Spacing.two,
   },
-  categoryHeader: {
+  goalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  goalForm: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+  },
+  goalAction: {
+    gap: Spacing.two,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#e6d4c6',
+    marginVertical: Spacing.two,
+  },
+  buttonPressed: {
+    opacity: 0.85,
   },
 });

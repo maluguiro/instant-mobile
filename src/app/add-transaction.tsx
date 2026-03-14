@@ -1,5 +1,5 @@
 ﻿import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -7,9 +7,10 @@ import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
-import { paymentMethods } from '@/constants/mock-data';
+import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { formatShortDate, toISODate } from '@/lib/finance';
+import { addPaymentMethod, getPaymentMethods } from '@/lib/payment-methods';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -41,12 +42,29 @@ export default function AddTransactionScreen() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [methods, setMethods] = useState<string[]>(defaultPaymentMethods);
   const [selectedMethod, setSelectedMethod] = useState('');
+  const [customMethod, setCustomMethod] = useState('');
+  const [useCustomMethod, setUseCustomMethod] = useState(false);
   const [dateOption, setDateOption] = useState<DateOption>('Hoy');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const theme = useTheme();
+
+  useEffect(() => {
+    let mounted = true;
+    const loadMethods = async () => {
+      const stored = await getPaymentMethods();
+      if (!mounted) return;
+      const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+      setMethods(merged);
+    };
+    loadMethods();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const categories = useMemo(() => {
     return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
@@ -74,6 +92,7 @@ export default function AddTransactionScreen() {
     const normalized = amount.replace(/[^0-9,.-]/g, '').replace(',', '.');
     const value = Number(normalized);
     const category = useCustomCategory ? customCategory.trim() : selectedCategory;
+    const method = useCustomMethod ? customMethod.trim() : selectedMethod;
 
     if (!value || Number.isNaN(value) || value <= 0) {
       setError('Ingresá un monto válido.');
@@ -83,9 +102,17 @@ export default function AddTransactionScreen() {
       setError('Seleccioná o escribí una categoría.');
       return;
     }
-    if (!selectedMethod) {
-      setError('Seleccioná un método de pago.');
+    if (!method) {
+      setError('Seleccioná o escribí un método de pago.');
       return;
+    }
+
+    if (useCustomMethod && method) {
+      const updated = await addPaymentMethod(method);
+      const merged = Array.from(new Set([...updated, ...defaultPaymentMethods]));
+      setMethods(merged);
+      setSelectedMethod(method);
+      setUseCustomMethod(false);
     }
 
     const now = new Date().toISOString();
@@ -95,7 +122,7 @@ export default function AddTransactionScreen() {
       amount: value,
       category,
       date: toISODate(selectedDate),
-      method: selectedMethod,
+      method,
       createdAt: now,
     };
 
@@ -232,15 +259,38 @@ export default function AddTransactionScreen() {
       <Card variant="soft">
         <SectionHeader title="Método" />
         <View style={styles.chipsCompact}>
-          {paymentMethods.map((method) => (
+          {methods.map((method) => (
             <SelectableOption
               key={method}
               label={method}
-              selected={selectedMethod === method}
-              onPress={() => setSelectedMethod(method)}
+              selected={selectedMethod === method && !useCustomMethod}
+              onPress={() => {
+                setUseCustomMethod(false);
+                setSelectedMethod(method);
+              }}
             />
           ))}
+          <SelectableOption
+            label="+ Agregar método"
+            selected={useCustomMethod}
+            onPress={() => {
+              setUseCustomMethod(true);
+              setSelectedMethod('');
+            }}
+          />
         </View>
+        {useCustomMethod ? (
+          <TextInput
+            placeholder="Escribí un método de pago"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+            value={customMethod}
+            onChangeText={(value) => {
+              setCustomMethod(value);
+              setSelectedMethod(value);
+            }}
+          />
+        ) : null}
       </Card>
 
       {error ? (
