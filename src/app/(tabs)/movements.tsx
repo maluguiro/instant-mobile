@@ -1,4 +1,4 @@
-﻿
+
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';

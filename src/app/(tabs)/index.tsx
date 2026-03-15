@@ -1,4 +1,4 @@
-﻿import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { ListItem } from '@/components/ui/list-item';
 import { Pill } from '@/components/ui/pill';
+import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { StatRow } from '@/components/ui/stat-row';
@@ -14,28 +15,41 @@ import { quickActions } from '@/constants/mock-data';
 import {
   calculateAvailable,
   calculateTotals,
+  filterByWeek,
   filterByMonth,
   formatCurrency,
   formatShortDate,
   getWeeklyPlanAmount,
+  isSavingsCategory,
 } from '@/lib/finance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
+import { DueDate, getDueDates, getInstallments, getRecurringPayments, Installment, RecurringPayment } from '@/lib/calendar';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [dueDates, setDueDates] = useState<DueDate[]>([]);
+  const [recurring, setRecurring] = useState<RecurringPayment[]>([]);
+  const [installments, setInstallments] = useState<Installment[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       refresh();
       refreshSettings();
       getSavingsGoals().then(setGoals);
+      Promise.all([getDueDates(), getRecurringPayments(), getInstallments()]).then(
+        ([due, rec, inst]) => {
+          setDueDates(due);
+          setRecurring(rec);
+          setInstallments(inst);
+        }
+      );
     }, [refresh, refreshSettings])
   );
 
@@ -51,12 +65,61 @@ export default function HomeScreen() {
     };
   }, [transactions, settings]);
 
-  const weeklyPlan = useMemo(
+  const weekTransactions = useMemo(
+    () => filterByWeek(transactions, new Date()),
+    [transactions]
+  );
+
+  const weeklyEnabled = useMemo(
     () => getWeeklyPlanAmount(settings, monthAvailable.available),
     [settings, monthAvailable.available]
   );
 
+  const weeklyUsed = useMemo(
+    () =>
+      weekTransactions.reduce((acc, tx) => {
+        if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
+        return acc + tx.amount;
+      }, 0),
+    [weekTransactions]
+  );
+
+  const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
+
   const recent = transactions.slice(0, 3);
+
+  const upcoming = useMemo(() => {
+    const activeDue = dueDates.filter((item) => item.status !== 'paid');
+    const activeRec = recurring.filter((item) => item.status === 'active');
+    const activeInst = installments.filter((item) => item.status !== 'completed');
+    const items = [
+      ...activeDue.map((item) => ({
+        key: `due-${item.id}`,
+        name: item.name,
+        amount: item.amount,
+        date: item.date,
+        type: 'Pago único',
+        label: 'Próximo vencimiento',
+      })),
+      ...activeRec.map((item) => ({
+        key: `rec-${item.id}`,
+        name: item.name,
+        amount: item.amount,
+        date: item.nextDate,
+        type: 'Recurrente',
+        label: 'Próximo pago',
+      })),
+      ...activeInst.map((item) => ({
+        key: `inst-${item.id}`,
+        name: item.name,
+        amount: item.amount,
+        date: item.nextDate,
+        type: 'Cuota',
+        label: 'Próxima cuota',
+      })),
+    ];
+    return items.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  }, [dueDates, installments, recurring]);
 
   return (
     <Screen>
@@ -70,7 +133,7 @@ export default function HomeScreen() {
       <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}>
         <View style={styles.primaryHeader}>
           <View>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
               Disponible mensual
             </ThemedText>
             <ThemedText type="title" style={styles.primaryValue}>
@@ -89,23 +152,22 @@ export default function HomeScreen() {
         style={({ pressed }) => [pressed && styles.cardPressed]}>
         <Card style={styles.secondaryCard}>
           <View style={styles.secondaryHeader}>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
               Disponible semanal
             </ThemedText>
-            <Pill label="Plan semanal" />
+            <ThemedText type="subtitle" style={styles.secondaryValue}>
+              {formatCurrency(weeklyEnabled)}
+            </ThemedText>
           </View>
-          <ThemedText type="subtitle" style={styles.secondaryValue}>
-            {settings.weeklyMode === 'manual'
-              ? weeklyPlan > 0
-                ? formatCurrency(weeklyPlan)
-                : 'Sin habilitar'
-              : formatCurrency(weeklyPlan)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {settings.weeklyMode === 'manual'
-              ? 'Habilitás el disponible cuando lo necesitás'
-              : 'Monto fijo configurado'}
-          </ThemedText>
+          <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />
+          <View style={styles.weeklySummaryRow}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Usado: {formatCurrency(weeklyUsed)}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Restante: {formatCurrency(weeklyRemaining)}
+            </ThemedText>
+          </View>
         </Card>
       </Pressable>
 
@@ -206,10 +268,28 @@ export default function HomeScreen() {
       </Card>
 
       <Card variant="soft">
-        <SectionHeader title="Próximos vencimientos" />
-        <ThemedText type="small" themeColor="textSecondary">
-          Todavía no cargaste vencimientos. Próximamente vas a poder agregarlos desde esta sección.
-        </ThemedText>
+        <SectionHeader
+          title="Próximos vencimientos"
+          actionLabel="Ver calendario"
+          onPress={() => router.push('/calendar')}
+        />
+        {upcoming.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Todavía no cargaste pagos. Podés agregarlos desde Calendario.
+          </ThemedText>
+        ) : (
+          <View style={styles.listGap}>
+            {upcoming.map((item) => (
+              <ListItem
+                key={item.key}
+                title={item.name}
+                subtitle={`${item.label}: ${formatShortDate(item.date)} · ${item.type}`}
+                trailing={formatCurrency(item.amount)}
+                onPress={() => router.push('/calendar')}
+              />
+            ))}
+          </View>
+        )}
       </Card>
     </Screen>
   );
@@ -245,8 +325,18 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
   secondaryValue: {
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  secondaryTitle: {
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  weeklySummaryRow: {
+    marginTop: Spacing.two,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   statsRow: {
     flexDirection: 'row',

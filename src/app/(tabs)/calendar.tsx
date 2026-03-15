@@ -1,4 +1,4 @@
-﻿
+
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -449,6 +449,14 @@ export default function CalendarScreen() {
     }
   };
 
+  const handleUpcomingPress = (source: 'due' | 'rec' | 'inst') => {
+    if (source === 'rec') {
+      setActiveTab('Recurrentes');
+    } else if (source === 'inst') {
+      setActiveTab('Cuotas');
+    }
+  };
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -505,8 +513,16 @@ export default function CalendarScreen() {
                       ? 'Próximo pago'
                       : 'Próxima cuota';
                 const typeLabel = item.source === 'due' ? 'Pago único' : item.source === 'rec' ? 'Recurrente' : 'Cuota';
+                const isJumpable = item.source !== 'due';
                 return (
-                  <View key={item.key} style={styles.rowBetween}>
+                  <Pressable
+                    key={item.key}
+                    disabled={!isJumpable}
+                    onPress={() => handleUpcomingPress(item.source)}
+                    style={({ pressed }) => [
+                      styles.rowBetween,
+                      pressed && isJumpable ? styles.pressed : null,
+                    ]}>
                     <View style={styles.itemInfo}>
                       <ThemedText type="smallBold">{item.name}</ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
@@ -533,7 +549,7 @@ export default function CalendarScreen() {
                         {statusLabel}
                       </ThemedText>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>

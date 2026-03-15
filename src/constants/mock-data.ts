@@ -1,4 +1,4 @@
-﻿export const quickActions = [
+export const quickActions = [
   { label: 'Agregar movimiento', route: '/add-transaction' },
   { label: 'Movimientos', route: '/movements' },
   { label: 'Presupuesto', route: '/budget' },

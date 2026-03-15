@@ -1,4 +1,4 @@
-﻿import { router } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
