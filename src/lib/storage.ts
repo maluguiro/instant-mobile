@@ -31,3 +31,11 @@ export async function setItem<T>(key: string, value: T): Promise<void> {
     // ignore for now
   }
 }
+
+export async function clearAllData(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+  } catch {
+    // ignore for now
+  }
+}

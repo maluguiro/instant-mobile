@@ -331,6 +331,7 @@ const styles = StyleSheet.create({
   secondaryTitle: {
     fontSize: 17,
     lineHeight: 22,
+    marginTop: -2,
   },
   weeklySummaryRow: {
     marginTop: Spacing.two,
