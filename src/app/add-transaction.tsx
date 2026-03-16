@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { formatShortDate, toISODate } from '@/lib/finance';
 import { addPaymentMethod, getPaymentMethods } from '@/lib/payment-methods';
+import { addCategory, getCategories } from '@/lib/categories';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -42,6 +44,7 @@ export default function AddTransactionScreen() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(EXPENSE_CATEGORIES);
   const [methods, setMethods] = useState<string[]>(defaultPaymentMethods);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [customMethod, setCustomMethod] = useState('');
@@ -66,9 +69,24 @@ export default function AddTransactionScreen() {
     };
   }, []);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      getPaymentMethods().then((stored) => {
+        const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+        setMethods(merged);
+      });
+    }, [])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      getCategories().then(setExpenseCategories);
+    }, [])
+  );
+
   const categories = useMemo(() => {
-    return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  }, [type]);
+    return type === 'income' ? INCOME_CATEGORIES : expenseCategories;
+  }, [expenseCategories, type]);
 
   const handleDateSelect = (option: DateOption) => {
     setDateOption(option);
@@ -113,6 +131,12 @@ export default function AddTransactionScreen() {
       setMethods(merged);
       setSelectedMethod(method);
       setUseCustomMethod(false);
+    }
+
+    if (useCustomCategory && category) {
+      await addCategory(category);
+      setSelectedCategory(category);
+      setUseCustomCategory(false);
     }
 
     const now = new Date().toISOString();

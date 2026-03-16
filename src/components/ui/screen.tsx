@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAppSettings } from '@/hooks/use-app-settings';
 import { useTheme } from '@/hooks/use-theme';
 
 type ScreenProps = {
@@ -13,6 +14,7 @@ type ScreenProps = {
 };
 
 export function Screen({ children, scroll = true, contentStyle, style }: ScreenProps) {
+  useAppSettings();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 

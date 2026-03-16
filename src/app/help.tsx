@@ -90,6 +90,16 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'Te ayuda a ver tu disponible mensual y semanal sin vueltas.',
     'El foco está en claridad y orden, no en complejidad.',
   ],
+  Home: [
+    'Home responde rápido a “¿cómo estoy hoy?”.',
+    'Vas a ver tu disponible mensual y semanal, más los movimientos recientes.',
+    'Desde ahí podés acceder a las secciones principales.',
+  ],
+  Movimientos: [
+    'Movimientos es tu historial completo.',
+    'Podés buscar, filtrar y ver el detalle de ingresos y egresos.',
+    'Es ideal para entender qué pasó en un período.',
+  ],
   'Registro de ingresos y egresos': [
     'Usá “Agregar movimiento” para cargar ingresos o egresos rápidamente.',
     'Elegí categoría, fecha y método de pago. Con eso ya queda registrado.',
@@ -104,5 +114,20 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'Calendario reúne pagos únicos, recurrentes y cuotas en un solo lugar.',
     'Te permite ver qué se viene pronto y registrar cada compromiso.',
     'Así podés anticiparte y evitar sorpresas.',
+  ],
+  'Ahorro y plan semanal': [
+    'El ahorro es una reserva separada y siempre se muestra como valor positivo.',
+    'El plan semanal te ayuda a decidir cuánto querés usar cada semana.',
+    'Ambos se configuran en Presupuesto para que todo quede ordenado.',
+  ],
+  'Vencimientos y cuotas': [
+    'En Calendario podés cargar vencimientos únicos, pagos recurrentes y cuotas.',
+    'La vista de próximos te ayuda a ver qué se viene antes.',
+    'Podés marcar pagos, pausar recurrentes y completar cuotas.',
+  ],
+  'Preguntas frecuentes': [
+    '¿Mis datos se sincronizan? Por ahora se guardan solo en este dispositivo.',
+    '¿Puedo exportar? Sí, desde Ajustes > Exportar datos.',
+    '¿Cómo cambio la moneda? En Ajustes > Moneda.',
   ],
 };

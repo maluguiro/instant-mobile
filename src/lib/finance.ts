@@ -1,5 +1,6 @@
 ﻿import { FinanceSettings } from '@/lib/finance-settings';
 import { Transaction } from '@/lib/types';
+import { getCachedAppSettings } from '@/lib/app-settings';
 
 export function parseDateInput(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
@@ -22,11 +23,12 @@ export function toISODate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number, currency?: string): string {
+  const resolvedCurrency = currency ?? getCachedAppSettings().currency ?? 'ARS';
   try {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
-      currency: 'ARS',
+      currency: resolvedCurrency,
       maximumFractionDigits: 0,
     }).format(value);
   } catch {

@@ -16,3 +16,17 @@ export async function addTransaction(item: Transaction): Promise<Transaction[]> 
   await saveTransactions(next);
   return next;
 }
+
+export async function updateTransactionCategory(previous: string, nextName: string): Promise<Transaction[]> {
+  const items = await getTransactions();
+  const next = items.map((tx) => (tx.category === previous ? { ...tx, category: nextName } : tx));
+  await saveTransactions(next);
+  return next;
+}
+
+export async function updateTransactionMethod(previous: string, nextName: string): Promise<Transaction[]> {
+  const items = await getTransactions();
+  const next = items.map((tx) => (tx.method === previous ? { ...tx, method: nextName } : tx));
+  await saveTransactions(next);
+  return next;
+}

@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   recurringPayments: 'instant:recurring_payments',
   installments: 'instant:installments',
   categories: 'instant:categories',
+  appSettings: 'instant:app_settings',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {
