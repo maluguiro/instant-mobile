@@ -1,10 +1,11 @@
 ﻿import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { getHasSeenOnboarding } from '@/constants/launch-state';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function LaunchGate() {
   const segments = useSegments();

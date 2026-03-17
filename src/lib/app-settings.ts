@@ -4,6 +4,7 @@ export type CurrencyCode = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 
 export type AppSettings = {
   currency: CurrencyCode;
+  theme: 'light' | 'dark';
   notifications: {
     dueDates: boolean;
     weekly: boolean;
@@ -13,6 +14,7 @@ export type AppSettings = {
 
 export const defaultAppSettings: AppSettings = {
   currency: 'ARS',
+  theme: 'light',
   notifications: {
     dueDates: true,
     weekly: false,

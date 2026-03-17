@@ -234,6 +234,7 @@ export default function PaymentMethodsScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   listGap: {
     marginTop: Spacing.three,

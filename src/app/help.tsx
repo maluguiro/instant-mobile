@@ -72,6 +72,7 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   topicGrid: {
     marginTop: Spacing.three,

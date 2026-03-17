@@ -22,7 +22,7 @@ export function Screen({ children, scroll = true, contentStyle, style }: ScreenP
   const innerStyle = [
     styles.content,
     {
-      paddingTop: Math.max(insets.top, Spacing.four),
+      paddingTop: Math.max(insets.top, Spacing.five),
       paddingBottom: Math.max(insets.bottom, Spacing.four) + BottomTabInset,
       paddingLeft: Math.max(insets.left, Spacing.four),
       paddingRight: Math.max(insets.right, Spacing.four),

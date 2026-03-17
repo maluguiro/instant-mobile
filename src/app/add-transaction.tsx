@@ -134,7 +134,8 @@ export default function AddTransactionScreen() {
     }
 
     if (useCustomCategory && category) {
-      await addCategory(category);
+      const nextCategories = await addCategory(category);
+      setExpenseCategories(nextCategories);
       setSelectedCategory(category);
       setUseCustomCategory(false);
     }
@@ -325,7 +326,11 @@ export default function AddTransactionScreen() {
 
       <Pressable
         onPress={handleSave}
-        style={[styles.saveButton, { backgroundColor: theme.brand }]}>
+        style={({ pressed }) => [
+          styles.saveButton,
+          { backgroundColor: theme.brand },
+          pressed && styles.buttonPressed,
+        ]}>
         <ThemedText type="smallBold" style={styles.saveText}>
           Guardar movimiento
         </ThemedText>
@@ -351,6 +356,7 @@ export default function AddTransactionScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   segmented: {
     flexDirection: 'row',
@@ -417,5 +423,8 @@ const styles = StyleSheet.create({
   saveText: {
     color: '#ffffff',
     fontSize: 16,
+  },
+  buttonPressed: {
+    opacity: 0.9,
   },
 });

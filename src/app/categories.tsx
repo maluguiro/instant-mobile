@@ -229,6 +229,7 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   listGap: {
     marginTop: Spacing.three,

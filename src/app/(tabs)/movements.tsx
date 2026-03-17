@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { SelectableOption } from '@/components/ui/selectable-option';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import {
   endOfWeek,
   formatCurrency,
@@ -151,7 +152,10 @@ export default function MovementsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Movimientos</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="subtitle">Movimientos</ThemedText>
+          <ThemeToggle />
+        </View>
         <ThemedText themeColor="textSecondary">
           Todo lo que pasó, ordenado y fácil de leer.
         </ThemedText>
@@ -469,6 +473,13 @@ export default function MovementsScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   searchCard: {
     gap: Spacing.two,
@@ -486,6 +497,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 14,
     fontWeight: '600',
+    lineHeight: 18,
+    minHeight: 40,
   },
   filterButton: {
     paddingVertical: Spacing.two,
@@ -493,6 +506,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
+    minHeight: 40,
+    justifyContent: 'center',
   },
   filterBlock: {
     marginTop: Spacing.three,

@@ -1,7 +1,7 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -82,9 +82,7 @@ export default function AppTabs() {
         ]}>
         <ThemedText style={styles.fabText}>+</ThemedText>
         <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
-          <ThemedText type="smallBold" style={styles.fabLabelText}>
-            Agregar
-          </ThemedText>
+          <Text style={styles.fabLabelText}>Agregar</Text>
         </ThemedView>
       </Pressable>
     </View>
@@ -122,5 +120,8 @@ const styles = StyleSheet.create({
   },
   fabLabelText: {
     fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: '#1f1b18',
   },
 });

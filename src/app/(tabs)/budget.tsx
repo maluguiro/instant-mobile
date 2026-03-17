@@ -10,6 +10,7 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { useTheme } from '@/hooks/use-theme';
@@ -471,7 +472,10 @@ export default function BudgetScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Presupuesto</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="subtitle">Presupuesto</ThemedText>
+          <ThemeToggle />
+        </View>
         <ThemedText themeColor="textSecondary">
           Organizá tu plan financiero con calma y claridad.
         </ThemedText>
@@ -1067,6 +1071,13 @@ export default function BudgetScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   tabRow: {
     marginTop: Spacing.three,

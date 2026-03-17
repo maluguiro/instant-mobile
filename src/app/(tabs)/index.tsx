@@ -11,6 +11,7 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { StatRow } from '@/components/ui/stat-row';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { quickActions } from '@/constants/mock-data';
 import {
   calculateAvailable,
@@ -124,7 +125,10 @@ export default function HomeScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Hola, Malena</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="subtitle">Hola, Malena</ThemedText>
+          <ThemeToggle />
+        </View>
         <ThemedText themeColor="textSecondary">
           ¿Cómo estás hoy? Esta es tu foto financiera.
         </ThemedText>
@@ -298,6 +302,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   primaryCard: {
     gap: Spacing.two,

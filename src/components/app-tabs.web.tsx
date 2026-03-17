@@ -8,7 +8,7 @@ import {
 } from 'expo-router/ui';
 import { router } from 'expo-router';
 import React from 'react';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { Pressable, Text, useColorScheme, View, StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
@@ -48,9 +48,7 @@ export default function AppTabs() {
           { backgroundColor: colors.brand },
           pressed && styles.pressedFab,
         ]}>
-        <ThemedText type="smallBold" style={styles.fabText}>
-          + Agregar
-        </ThemedText>
+        <Text style={styles.fabText}>+ Agregar</Text>
       </Pressable>
     </Tabs>
   );
@@ -123,7 +121,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   fabText: {
-    color: '#ffffff',
+    color: '#1f1b18',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
   },
   pressedFab: {
     opacity: 0.85,

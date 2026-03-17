@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { ListItem } from '@/components/ui/list-item';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 type SettingsEntry = {
   label: string;
@@ -20,7 +21,6 @@ const settingsMenu: SettingsEntry[] = [
   { label: 'Moneda', route: '/currency' },
   { label: 'Notificaciones', route: '/notifications' },
   { label: 'Exportar datos', route: '/export-data' },
-  { label: 'Apariencia', route: '/appearance' },
   { label: 'Reiniciar datos', route: '/reset-data' },
 ];
 
@@ -28,7 +28,10 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Ajustes</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="subtitle">Ajustes</ThemedText>
+          <ThemeToggle />
+        </View>
         <ThemedText themeColor="textSecondary">
           Personalizá Instant a tu forma de organizarte.
         </ThemedText>
@@ -54,6 +57,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   listGap: {
     marginTop: Spacing.three,

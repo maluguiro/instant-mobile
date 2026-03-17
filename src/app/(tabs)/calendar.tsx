@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
@@ -460,7 +461,10 @@ export default function CalendarScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <ThemedText type="subtitle">Calendario</ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText type="subtitle">Calendario</ThemedText>
+          <ThemeToggle />
+        </View>
         <ThemedText themeColor="textSecondary">
           Anticipate a pagos y cuotas con claridad.
         </ThemedText>
@@ -1188,6 +1192,13 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   tabsRow: {
     marginTop: Spacing.three,
@@ -1202,7 +1213,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addText: {
-    color: '#ffffff',
+    color: '#1f1b18',
   },
   listGap: {
     marginTop: Spacing.three,
