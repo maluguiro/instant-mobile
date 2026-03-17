@@ -1,9 +1,11 @@
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { CurrencyCode, getCachedAppSettings } from '@/lib/app-settings';
 
 export type DueDate = {
   id: string;
   name: string;
   amount: number;
+  currency: CurrencyCode;
   date: string; // YYYY-MM-DD
   category?: string;
   method?: string;
@@ -16,6 +18,7 @@ export type RecurringPayment = {
   id: string;
   name: string;
   amount: number;
+  currency: CurrencyCode;
   frequency: 'weekly' | 'monthly' | 'everyX';
   everyDays?: number;
   nextDate: string; // YYYY-MM-DD
@@ -32,6 +35,7 @@ export type Installment = {
   id: string;
   name: string;
   amount: number;
+  currency: CurrencyCode;
   total: number;
   current: number;
   nextDate: string; // YYYY-MM-DD
@@ -43,8 +47,10 @@ export type Installment = {
 
 export async function getDueDates(): Promise<DueDate[]> {
   const items = await getItem<DueDate[]>(STORAGE_KEYS.dueDates, []);
+  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: 'pending',
+    currency: item.currency ?? defaultCurrency,
     ...item,
   }));
 }
@@ -69,10 +75,12 @@ export async function removeDueDate(id: string): Promise<DueDate[]> {
 
 export async function getRecurringPayments(): Promise<RecurringPayment[]> {
   const items = await getItem<RecurringPayment[]>(STORAGE_KEYS.recurringPayments, []);
+  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: 'active',
     durationType: 'indefinite',
     durationMonths: 0,
+    currency: item.currency ?? defaultCurrency,
     ...item,
   }));
 }
@@ -97,8 +105,10 @@ export async function removeRecurringPayment(id: string): Promise<RecurringPayme
 
 export async function getInstallments(): Promise<Installment[]> {
   const items = await getItem<Installment[]>(STORAGE_KEYS.installments, []);
+  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: item.current >= item.total ? 'completed' : 'active',
+    currency: item.currency ?? defaultCurrency,
     ...item,
   }));
 }

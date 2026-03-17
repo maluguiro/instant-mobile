@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   installments: 'instant:installments',
   categories: 'instant:categories',
   appSettings: 'instant:app_settings',
+  auth: 'instant:auth',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {

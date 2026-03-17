@@ -44,6 +44,7 @@ export default function CurrencyScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   grid: {
     marginTop: Spacing.three,

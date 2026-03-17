@@ -1,4 +1,5 @@
-﻿import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { CurrencyCode, defaultAppSettings } from '@/lib/app-settings';
 
 export type SavingsMode = 'fixed' | 'percent' | 'manual';
 export type SavingsFrequency = 'monthly' | 'weekly' | 'everyX' | 'manual';
@@ -13,6 +14,7 @@ export type FinanceSettings = {
   savingsEveryDays: number;
   savingsMonthDay: number;
   savingsWeekday: number; // 0-6, Monday = 1
+  savingsCurrency: CurrencyCode;
   weeklyMode: WeeklyMode;
   weeklyAmount: number;
   weeklyRenewal: WeeklyRenewalMode;
@@ -30,6 +32,7 @@ export const defaultFinanceSettings: FinanceSettings = {
   savingsEveryDays: 30,
   savingsMonthDay: 1,
   savingsWeekday: 1,
+  savingsCurrency: defaultAppSettings.currency,
   weeklyMode: 'fixed',
   weeklyAmount: 0,
   weeklyRenewal: 'monday',

@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
+import React from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -35,8 +35,13 @@ export function SelectableOption({
 
   const labelColor = selected ? theme.accent : theme.textSecondary;
 
+  const handlePress = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onPress?.();
+  };
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [pressed && styles.pressed]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [pressed && styles.pressed]}>
       <View style={containerStyles}>
         <View style={styles.textBlock}>
           <ThemedText type="smallBold" style={{ color: labelColor }}>

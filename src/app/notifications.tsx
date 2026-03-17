@@ -35,7 +35,7 @@ export default function NotificationsScreen() {
             value={settings.notifications.dueDates}
             onValueChange={(value) => update({ notifications: { dueDates: value } })}
             trackColor={{ false: theme.border, true: theme.brandSoft }}
-            thumbColor={settings.notifications.dueDates ? theme.brand : '#ffffff'}
+            thumbColor={settings.notifications.dueDates ? theme.brand : theme.onBrand}
           />
         </View>
 
@@ -50,7 +50,7 @@ export default function NotificationsScreen() {
             value={settings.notifications.weekly}
             onValueChange={(value) => update({ notifications: { weekly: value } })}
             trackColor={{ false: theme.border, true: theme.brandSoft }}
-            thumbColor={settings.notifications.weekly ? theme.brand : '#ffffff'}
+            thumbColor={settings.notifications.weekly ? theme.brand : theme.onBrand}
           />
         </View>
 
@@ -65,7 +65,7 @@ export default function NotificationsScreen() {
             value={settings.notifications.savings}
             onValueChange={(value) => update({ notifications: { savings: value } })}
             trackColor={{ false: theme.border, true: theme.brandSoft }}
-            thumbColor={settings.notifications.savings ? theme.brand : '#ffffff'}
+            thumbColor={settings.notifications.savings ? theme.brand : theme.onBrand}
           />
         </View>
       </Card>
@@ -76,6 +76,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
   },
   row: {
     marginTop: Spacing.three,

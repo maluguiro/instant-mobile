@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+﻿import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Share } from 'react-native';
@@ -10,12 +10,13 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { calculateAvailable, calculateTotals, formatCurrency, toISODate } from '@/lib/finance';
+import { useAppSettings } from '@/hooks/use-app-settings';
+import { calculateAvailable, calculateTotals, formatCurrency, summarizeByCategory, toISODate } from '@/lib/finance';
 import { getFinanceSettings } from '@/lib/finance-settings';
 import { getTransactions } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 
-type PeriodOption = 'Este mes' | 'Mes anterior' | 'Este año' | 'Personalizado';
+type PeriodOption = 'Este mes' | 'Mes anterior' | 'Este aÃ±o' | 'Personalizado';
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') return null;
@@ -55,7 +56,7 @@ function filterTransactions(transactions: Transaction[], period: PeriodOption, s
       return date.getFullYear() === year && date.getMonth() === targetMonth;
     });
   }
-  if (period === 'Este año') {
+  if (period === 'Este aÃ±o') {
     const year = now.getFullYear();
     return transactions.filter((tx) => {
       const date = new Date(tx.date + 'T00:00:00');
@@ -91,6 +92,7 @@ async function exportCsv(filename: string, csv: string) {
 
 export default function ExportDataScreen() {
   const theme = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -115,32 +117,38 @@ export default function ExportDataScreen() {
     [transactions, period, startDate, endDate]
   );
 
-  const totals = useMemo(() => calculateTotals(filtered), [filtered]);
+  const totals = useMemo(
+    () => calculateTotals(filtered, appSettings.currency),
+    [filtered, appSettings.currency]
+  );
   const availability = useMemo(
-    () => (settings ? calculateAvailable(totals, settings) : { savingsTotal: 0, available: 0, savingsReserved: 0 }),
-    [totals, settings]
+    () =>
+      settings
+        ? calculateAvailable(totals, settings, appSettings.currency)
+        : { savingsTotal: 0, available: 0, savingsReserved: 0 },
+    [totals, settings, appSettings.currency]
   );
 
-  const summaryByCategory = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const tx of filtered) {
-      if (tx.type !== 'expense') continue;
-      map.set(tx.category, (map.get(tx.category) ?? 0) + tx.amount);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+  const summaryByCategory = useMemo(
+    () =>
+      summarizeByCategory(filtered, appSettings.currency)
+        .map((item) => [item.category, item.amount] as const)
+        .sort((a, b) => b[1] - a[1]),
+    [filtered, appSettings.currency]
+  );
 
   const handleExportPeriod = async () => {
     if (period === 'Personalizado' && (!startDate || !endDate)) {
       Alert.alert('Rango incompleto', 'Seleccioná las fechas desde y hasta.');
       return;
     }
-    const headers = ['Fecha', 'Tipo', 'Categoría', 'Método', 'Monto', 'Nota'];
+    const headers = ['Fecha', 'Tipo', 'Categoría', 'Método', 'Moneda', 'Monto', 'Nota'];
     const rows = filtered.map((tx) => [
       toCsvValue(tx.date),
       toCsvValue(tx.type === 'income' ? 'Ingreso' : 'Egreso'),
       toCsvValue(tx.category),
       toCsvValue(tx.method),
+      toCsvValue(tx.currency),
       toCsvValue(String(tx.amount)),
       toCsvValue((tx as Transaction & { note?: string }).note ?? ''),
     ]);
@@ -151,13 +159,16 @@ export default function ExportDataScreen() {
   const handleExportSummary = async () => {
     const headers = ['Concepto', 'Valor'];
     const summaryRows = [
-      ['Ingresos', formatCurrency(totals.income)],
-      ['Egresos', formatCurrency(totals.expense)],
-      ['Ahorro', formatCurrency(availability.savingsTotal)],
-      ['Balance', formatCurrency(availability.available)],
+      ['Ingresos', formatCurrency(totals.income, appSettings.currency)],
+      ['Egresos', formatCurrency(totals.expense, appSettings.currency)],
+      ['Ahorro', formatCurrency(availability.savingsTotal, settings?.savingsCurrency)],
+      ['Balance', formatCurrency(availability.available, appSettings.currency)],
     ];
     const categoryHeader = ['Categoría', 'Monto'];
-    const categoryRows = summaryByCategory.map(([category, amount]) => [category, formatCurrency(amount)]);
+    const categoryRows = summaryByCategory.map(([category, amount]) => [
+      category,
+      formatCurrency(amount, appSettings.currency),
+    ]);
     const csv = [
       headers.join(','),
       ...summaryRows.map((row) => row.map(toCsvValue).join(',')),
@@ -169,12 +180,13 @@ export default function ExportDataScreen() {
   };
 
   const handleExportAll = async () => {
-    const headers = ['Fecha', 'Tipo', 'Categoría', 'Método', 'Monto', 'Nota'];
+    const headers = ['Fecha', 'Tipo', 'Categoría', 'Método', 'Moneda', 'Monto', 'Nota'];
     const rows = transactions.map((tx) => [
       toCsvValue(tx.date),
       toCsvValue(tx.type === 'income' ? 'Ingreso' : 'Egreso'),
       toCsvValue(tx.category),
       toCsvValue(tx.method),
+      toCsvValue(tx.currency),
       toCsvValue(String(tx.amount)),
       toCsvValue((tx as Transaction & { note?: string }).note ?? ''),
     ]);
@@ -194,7 +206,7 @@ export default function ExportDataScreen() {
       <Card variant="soft">
         <SectionHeader title="Por período" />
         <View style={styles.tabsRow}>
-          {(['Este mes', 'Mes anterior', 'Este año', 'Personalizado'] as PeriodOption[]).map((option) => (
+          {(['Este mes', 'Mes anterior', 'Este aÃ±o', 'Personalizado'] as PeriodOption[]).map((option) => (
             <SelectableOption
               key={option}
               label={option}
@@ -383,3 +395,5 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+

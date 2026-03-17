@@ -8,6 +8,7 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
+
 type SettingsEntry = {
   label: string;
   route: string;

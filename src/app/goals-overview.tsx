@@ -11,10 +11,12 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatCurrency } from '@/lib/finance';
+import { useAppSettings } from '@/hooks/use-app-settings';
 import { getSavingsGoals, removeSavingsGoal, SavingsGoal } from '@/lib/goals';
 
 export default function GoalsOverviewScreen() {
   const theme = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
@@ -62,8 +64,13 @@ export default function GoalsOverviewScreen() {
                 <View style={styles.goalHeader}>
                   <ThemedText type="smallBold">{goal.title}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {formatCurrency(goal.saved)} / {formatCurrency(goal.target)}
+                    {formatCurrency(goal.saved, goal.currency)} / {formatCurrency(goal.target, goal.currency)}
                   </ThemedText>
+                  {goal.currency !== appSettings.currency ? (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {goal.currency}
+                    </ThemedText>
+                  ) : null}
                 </View>
                 <ProgressBar value={goal.target ? goal.saved / goal.target : 0} />
               </View>
@@ -128,7 +135,7 @@ export default function GoalsOverviewScreen() {
                     ]}>
                     <ThemedText type="smallBold">{goal.title}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      {formatCurrency(goal.saved)} / {formatCurrency(goal.target)}
+                      {formatCurrency(goal.saved, goal.currency)} / {formatCurrency(goal.target, goal.currency)}
                     </ThemedText>
                   </Pressable>
                 );

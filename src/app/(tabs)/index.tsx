@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -16,11 +16,13 @@ import { quickActions } from '@/constants/mock-data';
 import {
   calculateAvailable,
   calculateTotals,
+  filterByCurrency,
   filterByWeek,
   filterByMonth,
   formatCurrency,
   formatShortDate,
   getWeeklyPlanAmount,
+  getTransactionCurrency,
   isSavingsCategory,
 } from '@/lib/finance';
 import { useTransactions } from '@/hooks/use-transactions';
@@ -29,15 +31,22 @@ import { useTheme } from '@/hooks/use-theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 import { DueDate, getDueDates, getInstallments, getRecurringPayments, Installment, RecurringPayment } from '@/lib/calendar';
+import { useAppSettings } from '@/hooks/use-app-settings';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
+  const { settings: appSettings } = useAppSettings();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [dueDates, setDueDates] = useState<DueDate[]>([]);
   const [recurring, setRecurring] = useState<RecurringPayment[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [currencyIndex, setCurrencyIndex] = useState(0);
+  const [carouselWidth, setCarouselWidth] = useState(0);
+  const [summaryWidth, setSummaryWidth] = useState(0);
+  const mainCarouselRef = useRef<ScrollView>(null);
+  const summaryCarouselRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,35 +63,84 @@ export default function HomeScreen() {
     }, [refresh, refreshSettings])
   );
 
-  const { monthTotals, monthAvailable } = useMemo(() => {
+  const monthData = useMemo(() => {
     const now = new Date();
     const monthTx = filterByMonth(transactions, now);
-    const totals = calculateTotals(monthTx);
-    const availability = calculateAvailable(totals, settings);
+    const currencies = Array.from(
+      new Set(monthTx.map((tx) => getTransactionCurrency(tx, appSettings.currency)))
+    );
 
-    return {
-      monthTotals: totals,
-      monthAvailable: availability,
-    };
-  }, [transactions, settings]);
+    const normalizedCurrencies =
+      currencies.length > 0
+        ? currencies.includes(appSettings.currency)
+          ? [
+              appSettings.currency,
+              ...currencies.filter((currency) => currency !== appSettings.currency),
+            ]
+          : currencies
+        : [appSettings.currency];
+
+    return normalizedCurrencies.map((currency) => {
+      const currencyTx = filterByCurrency(monthTx, currency);
+      const totals = calculateTotals(currencyTx, currency);
+      const availability = calculateAvailable(totals, settings, currency);
+
+      return {
+        currency,
+        totals,
+        availability,
+      };
+    });
+  }, [transactions, settings, appSettings.currency]);
+
+  const primaryMonth = useMemo(() => {
+    return (
+      monthData.find((entry) => entry.currency === appSettings.currency) ??
+      monthData[0] ?? {
+        currency: appSettings.currency,
+        totals: { income: 0, expense: 0, savingsManual: 0 },
+        availability: { savingsReserved: 0, savingsTotal: 0, available: 0 },
+      }
+    );
+  }, [monthData, appSettings.currency]);
+
+  useEffect(() => {
+    if (currencyIndex >= monthData.length) {
+      setCurrencyIndex(0);
+    }
+  }, [currencyIndex, monthData.length]);
+
+  const activeMonth = monthData[currencyIndex] ?? primaryMonth;
+
+  useEffect(() => {
+    if (carouselWidth > 0) {
+      mainCarouselRef.current?.scrollTo({ x: currencyIndex * carouselWidth, animated: true });
+    }
+    if (summaryWidth > 0) {
+      summaryCarouselRef.current?.scrollTo({ x: currencyIndex * summaryWidth, animated: true });
+    }
+  }, [currencyIndex, carouselWidth, summaryWidth]);
 
   const weekTransactions = useMemo(
     () => filterByWeek(transactions, new Date()),
     [transactions]
   );
-
+  const weekCurrencyTransactions = useMemo(
+    () => filterByCurrency(weekTransactions, appSettings.currency),
+    [weekTransactions, appSettings.currency]
+  );
   const weeklyEnabled = useMemo(
-    () => getWeeklyPlanAmount(settings, monthAvailable.available),
-    [settings, monthAvailable.available]
+    () => getWeeklyPlanAmount(settings, primaryMonth.availability.available),
+    [settings, primaryMonth.availability.available]
   );
 
   const weeklyUsed = useMemo(
     () =>
-      weekTransactions.reduce((acc, tx) => {
+      weekCurrencyTransactions.reduce((acc, tx) => {
         if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
         return acc + tx.amount;
       }, 0),
-    [weekTransactions]
+    [weekCurrencyTransactions]
   );
 
   const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
@@ -98,6 +156,7 @@ export default function HomeScreen() {
         key: `due-${item.id}`,
         name: item.name,
         amount: item.amount,
+        currency: item.currency,
         date: item.date,
         type: 'Pago único',
         label: 'Próximo vencimiento',
@@ -106,6 +165,7 @@ export default function HomeScreen() {
         key: `rec-${item.id}`,
         name: item.name,
         amount: item.amount,
+        currency: item.currency,
         date: item.nextDate,
         type: 'Recurrente',
         label: 'Próximo pago',
@@ -114,6 +174,7 @@ export default function HomeScreen() {
         key: `inst-${item.id}`,
         name: item.name,
         amount: item.amount,
+        currency: item.currency,
         date: item.nextDate,
         type: 'Cuota',
         label: 'Próxima cuota',
@@ -135,20 +196,63 @@ export default function HomeScreen() {
       </View>
 
       <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}>
-        <View style={styles.primaryHeader}>
-          <View>
-            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
-              Disponible mensual
-            </ThemedText>
-            <ThemedText type="title" style={styles.primaryValue}>
-              {formatCurrency(monthAvailable.available)}
-            </ThemedText>
-          </View>
-          <Pill label="Disponible" tone="accent" />
+        <View
+          style={styles.carouselViewport}
+          onLayout={(event) => {
+            setCarouselWidth(event.nativeEvent.layout.width);
+          }}>
+          <ScrollView
+            ref={mainCarouselRef}
+            horizontal
+            pagingEnabled
+            decelerationRate="fast"
+            snapToAlignment="start"
+            snapToInterval={carouselWidth || 1}
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={monthData.length > 1}
+            contentContainerStyle={styles.carouselContent}
+            onMomentumScrollEnd={(event) => {
+              if (!carouselWidth) return;
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / carouselWidth);
+              setCurrencyIndex(Math.max(0, Math.min(nextIndex, monthData.length - 1)));
+            }}>
+            {monthData.map((entry) => (
+              <View
+                key={entry.currency}
+                style={[styles.carouselPage, { width: carouselWidth || '100%' }]}>
+                <View style={styles.primaryHeader}>
+                  <View>
+                    <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
+                      Disponible mensual
+                    </ThemedText>
+                    <ThemedText type="title" style={styles.primaryValue}>
+                      {formatCurrency(entry.availability.available, entry.currency)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.currencyHint}>
+                    <Pill label={entry.currency} tone="accent" />
+                    {monthData.length > 1 ? (
+                      <View style={styles.dotRow}>
+                        {monthData.map((item, index) => (
+                          <View
+                            key={item.currency}
+                            style={[
+                              styles.dot,
+                              { backgroundColor: index === currencyIndex ? theme.brand : theme.border },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Ingresos menos egresos y ahorro reservado
+                </ThemedText>
+              </View>
+            ))}
+          </ScrollView>
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          Ingresos menos egresos y ahorro reservado
-        </ThemedText>
       </Card>
 
       <Pressable
@@ -177,25 +281,71 @@ export default function HomeScreen() {
 
       <Card>
         <SectionHeader title="Resumen del mes" />
-        <View style={styles.statsRow}>
-          <StatRow
-            label="Ingresos"
-            value={formatCurrency(monthTotals.income)}
-            tone="positive"
-            style={styles.statItem}
-          />
-          <StatRow
-            label="Egresos"
-            value={formatCurrency(monthTotals.expense)}
-            tone="neutral"
-            style={styles.statItem}
-          />
-          <StatRow
-            label="Ahorro"
-            value={formatCurrency(monthAvailable.savingsTotal)}
-            tone="positive"
-            style={styles.statItem}
-          />
+        <View
+          style={styles.carouselViewport}
+          onLayout={(event) => {
+            setSummaryWidth(event.nativeEvent.layout.width);
+          }}>
+          <ScrollView
+            ref={summaryCarouselRef}
+            horizontal
+            pagingEnabled
+            decelerationRate="fast"
+            snapToAlignment="start"
+            snapToInterval={summaryWidth || 1}
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={monthData.length > 1}
+            contentContainerStyle={styles.carouselContent}
+            onMomentumScrollEnd={(event) => {
+              if (!summaryWidth) return;
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / summaryWidth);
+              setCurrencyIndex(Math.max(0, Math.min(nextIndex, monthData.length - 1)));
+            }}>
+            {monthData.map((entry) => (
+              <View
+                key={entry.currency}
+                style={[styles.carouselPage, { width: summaryWidth || '100%' }]}>
+                <View style={styles.summaryHeaderRow}>
+                  <View style={styles.currencyHint}>
+                    <Pill label={entry.currency} tone="accent" />
+                    {monthData.length > 1 ? (
+                      <View style={styles.dotRow}>
+                        {monthData.map((item, index) => (
+                          <View
+                            key={item.currency}
+                            style={[
+                              styles.dot,
+                              { backgroundColor: index === currencyIndex ? theme.brand : theme.border },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={styles.statsRow}>
+                  <StatRow
+                    label="Ingresos"
+                    value={formatCurrency(entry.totals.income, entry.currency)}
+                    tone="positive"
+                    style={styles.statItem}
+                  />
+                  <StatRow
+                    label="Egresos"
+                    value={formatCurrency(entry.totals.expense, entry.currency)}
+                    tone="neutral"
+                    style={styles.statItem}
+                  />
+                  <StatRow
+                    label="Ahorro"
+                    value={formatCurrency(entry.availability.savingsTotal, entry.currency)}
+                    tone="positive"
+                    style={styles.statItem}
+                  />
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       </Card>
 
@@ -264,7 +414,7 @@ export default function HomeScreen() {
                 key={movement.id}
                 title={movement.category}
                 subtitle={`${movement.method} · ${formatShortDate(movement.date)}`}
-                trailing={`${movement.type === 'income' ? '+' : '-'}${formatCurrency(movement.amount)}`}
+                trailing={`${movement.type === 'income' ? '+' : '-'}${formatCurrency(movement.amount, movement.currency)}`}
               />
             ))
           )}
@@ -288,7 +438,7 @@ export default function HomeScreen() {
                 key={item.key}
                 title={item.name}
                 subtitle={`${item.label}: ${formatShortDate(item.date)} · ${item.type}`}
-                trailing={formatCurrency(item.amount)}
+                trailing={formatCurrency(item.amount, item.currency)}
                 onPress={() => router.push('/calendar')}
               />
             ))}
@@ -313,6 +463,15 @@ const styles = StyleSheet.create({
   primaryCard: {
     gap: Spacing.two,
   },
+  carouselViewport: {
+    width: '100%',
+  },
+  carouselContent: {
+    alignItems: 'flex-start',
+  },
+  carouselPage: {
+    gap: Spacing.two,
+  },
   primaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -335,6 +494,20 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.92,
   },
+  currencyHint: {
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  dotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+  },
   secondaryValue: {
     fontSize: 18,
     lineHeight: 24,
@@ -351,13 +524,17 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.three,
-    flexWrap: 'wrap',
+    flexDirection: 'column',
+    gap: Spacing.two,
     marginTop: Spacing.three,
   },
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: Spacing.one,
+  },
   statItem: {
-    minWidth: 110,
+    minWidth: 0,
   },
   quickActions: {
     marginTop: Spacing.three,

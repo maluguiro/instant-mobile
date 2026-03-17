@@ -10,6 +10,7 @@ import { Spacing } from '@/constants/theme';
 
 const HELP_TOPICS = [
   'Qué es Instant',
+  'Cuenta',
   'Home',
   'Movimientos',
   'Presupuesto',
@@ -17,6 +18,10 @@ const HELP_TOPICS = [
   'Registro de ingresos y egresos',
   'Ahorro y plan semanal',
   'Vencimientos y cuotas',
+  'Categorías y métodos',
+  'Exportación',
+  'Notificaciones',
+  'Tema claro/oscuro',
   'Preguntas frecuentes',
 ] as const;
 
@@ -91,6 +96,10 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'Te ayuda a ver tu disponible mensual y semanal sin vueltas.',
     'El foco está en claridad y orden, no en complejidad.',
   ],
+  Cuenta: [
+    'Tu cuenta sirve para respaldar tu información y recuperarla cuando la necesites.',
+    'Más adelante permitirá usar Instant en varios dispositivos y compartir datos en Instant Duo.',
+  ],
   Home: [
     'Home responde rápido a “¿cómo estoy hoy?”.',
     'Vas a ver tu disponible mensual y semanal, más los movimientos recientes.',
@@ -100,11 +109,6 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'Movimientos es tu historial completo.',
     'Podés buscar, filtrar y ver el detalle de ingresos y egresos.',
     'Es ideal para entender qué pasó en un período.',
-  ],
-  'Registro de ingresos y egresos': [
-    'Usá “Agregar movimiento” para cargar ingresos o egresos rápidamente.',
-    'Elegí categoría, fecha y método de pago. Con eso ya queda registrado.',
-    'Todo se guarda localmente y se refleja en Home y Movimientos.',
   ],
   Presupuesto: [
     'Presupuesto es tu centro de planificación: ahorro, plan semanal y metas.',
@@ -116,6 +120,11 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'Te permite ver qué se viene pronto y registrar cada compromiso.',
     'Así podés anticiparte y evitar sorpresas.',
   ],
+  'Registro de ingresos y egresos': [
+    'Usá “Agregar movimiento” para cargar ingresos o egresos rápidamente.',
+    'Elegí categoría, fecha y método de pago. Con eso ya queda registrado.',
+    'Todo se guarda localmente y se refleja en Home y Movimientos.',
+  ],
   'Ahorro y plan semanal': [
     'El ahorro es una reserva separada y siempre se muestra como valor positivo.',
     'El plan semanal te ayuda a decidir cuánto querés usar cada semana.',
@@ -125,6 +134,22 @@ const HELP_CONTENT: Partial<Record<HelpTopic, string[]>> = {
     'En Calendario podés cargar vencimientos únicos, pagos recurrentes y cuotas.',
     'La vista de próximos te ayuda a ver qué se viene antes.',
     'Podés marcar pagos, pausar recurrentes y completar cuotas.',
+  ],
+  'Categorías y métodos': [
+    'Desde Ajustes podés crear, editar o eliminar categorías y métodos de pago.',
+    'Si un elemento ya está en uso, la app te avisa antes de eliminarlo.',
+  ],
+  Exportación: [
+    'Podés exportar tus datos desde Ajustes > Exportar datos.',
+    'Elegí exportar por período, un resumen o todo el historial.',
+  ],
+  Notificaciones: [
+    'En Ajustes podés activar recordatorios de vencimientos, resumen semanal y ahorro programado.',
+    'Por ahora se guarda la preferencia localmente para una versión futura con notificaciones reales.',
+  ],
+  'Tema claro/oscuro': [
+    'Podés cambiar entre modo claro y oscuro desde el ícono del encabezado.',
+    'La elección se guarda localmente y se aplica en toda la app.',
   ],
   'Preguntas frecuentes': [
     '¿Mis datos se sincronizan? Por ahora se guardan solo en este dispositivo.',

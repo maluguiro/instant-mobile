@@ -2,10 +2,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, LayoutAnimation, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
+import { CurrencySelect } from '@/components/ui/currency-select';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -14,14 +15,17 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { useTheme } from '@/hooks/use-theme';
+import { useAppSettings } from '@/hooks/use-app-settings';
 import { useTransactions } from '@/hooks/use-transactions';
 import {
   calculateAvailable,
   calculateSavingsReserved,
   calculateTotals,
+  filterByCurrency,
   filterByMonth,
   filterByWeek,
   formatCurrency,
+  hasOtherCurrencies,
   getWeeklyPlanAmount,
   isSavingsCategory,
   toISODate,
@@ -116,11 +120,12 @@ function formatGoalPlan(goal: SavingsGoal) {
   if (goal.mode === 'percent') {
     return `${goal.percent}% ${schedule}`;
   }
-  return `${formatCurrency(goal.fixedAmount)} ${schedule}`;
+  return `${formatCurrency(goal.fixedAmount, goal.currency)} ${schedule}`;
 }
 
 export default function BudgetScreen() {
   const theme = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { settings, refresh, update } = useFinanceSettings();
   const { transactions, refresh: refreshTransactions, add } = useTransactions();
@@ -135,6 +140,7 @@ export default function BudgetScreen() {
   const [savingsMonthDay, setSavingsMonthDay] = useState(String(settings.savingsMonthDay));
   const [savingsWeekday, setSavingsWeekday] = useState(settings.savingsWeekday);
   const [savingsManualAmount, setSavingsManualAmount] = useState('');
+  const [savingsCurrency, setSavingsCurrency] = useState(settings.savingsCurrency);
 
   const [weeklyMode, setWeeklyMode] = useState(settings.weeklyMode);
   const [weeklyAmount, setWeeklyAmount] = useState(String(settings.weeklyAmount));
@@ -154,6 +160,7 @@ export default function BudgetScreen() {
   const [goalEveryDays, setGoalEveryDays] = useState('30');
   const [goalMonthDay, setGoalMonthDay] = useState('1');
   const [goalWeekday, setGoalWeekday] = useState(1);
+  const [goalCurrency, setGoalCurrency] = useState(appSettings.currency);
   const [goalContribution, setGoalContribution] = useState<Record<string, string>>({});
 
   const [savePlanDone, setSavePlanDone] = useState(false);
@@ -178,6 +185,7 @@ export default function BudgetScreen() {
     setSavingsEveryDays(String(settings.savingsEveryDays));
     setSavingsMonthDay(String(settings.savingsMonthDay));
     setSavingsWeekday(settings.savingsWeekday);
+    setSavingsCurrency(settings.savingsCurrency);
     setWeeklyMode(settings.weeklyMode === 'auto' ? 'fixed' : settings.weeklyMode);
     setWeeklyAmount(String(settings.weeklyAmount));
     setWeeklyRenewal(settings.weeklyRenewal);
@@ -186,23 +194,46 @@ export default function BudgetScreen() {
   }, [settings]);
 
   useEffect(() => {
+    setGoalCurrency(appSettings.currency);
+  }, [appSettings.currency]);
+
+  useEffect(() => {
     const tabParam = params.tab;
     if (typeof tabParam === 'string' && TABS.includes(tabParam as Tab)) {
       setActiveTab(tabParam as Tab);
     }
   }, [params.tab]);
 
+  const appCurrency = appSettings.currency;
   const monthTransactions = useMemo(
     () => filterByMonth(transactions, new Date()),
     [transactions]
+  );
+  const monthCurrencyTransactions = useMemo(
+    () => filterByCurrency(monthTransactions, appCurrency),
+    [monthTransactions, appCurrency]
   );
   const weekTransactions = useMemo(
     () => filterByWeek(transactions, new Date()),
     [transactions]
   );
+  const weekCurrencyTransactions = useMemo(
+    () => filterByCurrency(weekTransactions, appCurrency),
+    [weekTransactions, appCurrency]
+  );
+  const hasOtherCurrencyTransactions = useMemo(
+    () => hasOtherCurrencies(monthTransactions, appCurrency),
+    [monthTransactions, appCurrency]
+  );
 
-  const totals = useMemo(() => calculateTotals(monthTransactions), [monthTransactions]);
-  const monthAvailable = useMemo(() => calculateAvailable(totals, settings), [totals, settings]);
+  const totals = useMemo(
+    () => calculateTotals(monthCurrencyTransactions, appCurrency),
+    [monthCurrencyTransactions, appCurrency]
+  );
+  const monthAvailable = useMemo(
+    () => calculateAvailable(totals, settings, appCurrency),
+    [totals, settings, appCurrency]
+  );
 
   const weeklyEnabled = useMemo(() => {
     if (settings.weeklyMode === 'manual') {
@@ -213,11 +244,11 @@ export default function BudgetScreen() {
 
   const weeklyUsed = useMemo(
     () =>
-      weekTransactions.reduce((acc, tx) => {
+      weekCurrencyTransactions.reduce((acc, tx) => {
         if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
         return acc + tx.amount;
       }, 0),
-    [weekTransactions]
+    [weekCurrencyTransactions]
   );
 
   const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
@@ -261,7 +292,7 @@ export default function BudgetScreen() {
     if (savingsMode === 'percent') {
       return `Se reservará el ${parseAmount(savingsPercent) || 0}% de tus ingresos ${schedule}`;
     }
-    return `Se reservarán ${formatCurrency(parseAmount(savingsFixed) || 0)} ${schedule}`;
+    return `Se reservarán ${formatCurrency(parseAmount(savingsFixed) || 0, savingsCurrency)} ${schedule}`;
   }, [
     savingsMode,
     savingsFixed,
@@ -270,20 +301,23 @@ export default function BudgetScreen() {
     savingsEveryDays,
     savingsMonthDay,
     savingsWeekday,
+    savingsCurrency,
   ]);
 
   const weeklySummary = useMemo(() => {
     if (weeklyMode === 'manual') {
       return 'Plan manual con habilitación puntual.';
     }
-    return `Plan semanal de ${formatCurrency(parseAmount(weeklyAmount) || 0)}.`;
-  }, [weeklyMode, weeklyAmount]);
+    return `Plan semanal de ${formatCurrency(parseAmount(weeklyAmount) || 0, appCurrency)}.`;
+  }, [weeklyMode, weeklyAmount, appCurrency]);
 
   const goalSummary = useMemo(() => {
-    const totalTarget = goals.reduce((acc, goal) => acc + goal.target, 0);
-    const totalSaved = goals.reduce((acc, goal) => acc + goal.saved, 0);
-    return { totalTarget, totalSaved };
-  }, [goals]);
+    const sameCurrency = goals.filter((goal) => goal.currency === appCurrency);
+    const totalTarget = sameCurrency.reduce((acc, goal) => acc + goal.target, 0);
+    const totalSaved = sameCurrency.reduce((acc, goal) => acc + goal.saved, 0);
+    const hasOtherCurrencies = goals.some((goal) => goal.currency !== appCurrency);
+    return { totalTarget, totalSaved, hasOtherCurrencies };
+  }, [goals, appCurrency]);
 
   const goalSchedulePreview = useMemo(
     () =>
@@ -312,6 +346,7 @@ export default function BudgetScreen() {
       savingsEveryDays: everyDays,
       savingsMonthDay: Math.max(parseAmount(savingsMonthDay), 1),
       savingsWeekday,
+      savingsCurrency,
       weeklyMode,
       weeklyAmount: weekly,
       weeklyRenewal,
@@ -319,6 +354,7 @@ export default function BudgetScreen() {
       weeklyEveryDays: weeklyEvery,
     });
 
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSavePlanDone(true);
     setTimeout(() => setSavePlanDone(false), 1400);
   };
@@ -330,12 +366,14 @@ export default function BudgetScreen() {
       id: String(Date.now()),
       type: 'expense',
       amount,
+      currency: savingsCurrency,
       category: 'Ahorro',
       date: toISODate(new Date()),
       method: 'Ahorro',
       createdAt: new Date().toISOString(),
     });
     setSavingsManualAmount('');
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setManualSavingsDone(true);
     setTimeout(() => setManualSavingsDone(false), 1400);
   };
@@ -349,6 +387,7 @@ export default function BudgetScreen() {
       weeklyManualEnabledAt: new Date().toISOString(),
     });
     setWeeklyManualAmount('');
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setWeeklyManualDone(true);
     setTimeout(() => setWeeklyManualDone(false), 1400);
   };
@@ -367,6 +406,7 @@ export default function BudgetScreen() {
       title,
       target,
       saved,
+      currency: goalCurrency,
       mode: goalMode,
       fixedAmount: Math.max(parseAmount(goalFixedAmount), 0),
       percent: Math.max(parseAmount(goalPercent), 0),
@@ -387,6 +427,7 @@ export default function BudgetScreen() {
     setGoalEveryDays('30');
     setGoalMonthDay('1');
     setGoalWeekday(1);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setGoalAddedDone(true);
     setTimeout(() => setGoalAddedDone(false), 1400);
   };
@@ -397,6 +438,7 @@ export default function BudgetScreen() {
     const next = await contributeToGoal(goalId, amount);
     setGoals(next);
     setGoalContribution((prev) => ({ ...prev, [goalId]: '' }));
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setGoalContributionDone((prev) => ({ ...prev, [goalId]: true }));
     setTimeout(
       () => setGoalContributionDone((prev) => ({ ...prev, [goalId]: false })),
@@ -493,6 +535,11 @@ export default function BudgetScreen() {
             />
           ))}
         </View>
+        {hasOtherCurrencyTransactions ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Totales calculados en {appCurrency}. Hay movimientos en otras monedas.
+          </ThemedText>
+        ) : null}
 
         {activeTab === 'Ahorro' ? (
           <View style={styles.sectionBody}>
@@ -516,14 +563,23 @@ export default function BudgetScreen() {
                 />
               </View>
               {savingsMode === 'fixed' ? (
-                <TextInput
-                  placeholder="$0"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={savingsFixed}
-                  onChangeText={setSavingsFixed}
-                  keyboardType="numeric"
-                />
+                <View style={styles.inlineAmountRow}>
+                  <TextInput
+                    placeholder="0"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.input, styles.inlineInput, { color: theme.text, borderColor: theme.border }]}
+                    value={savingsFixed}
+                    onChangeText={setSavingsFixed}
+                    keyboardType="numeric"
+                  />
+                  <CurrencySelect
+                    value={savingsCurrency}
+                    onChange={setSavingsCurrency}
+                    compact
+                    style={styles.inlineCurrency}
+                    label=""
+                  />
+                </View>
               ) : null}
               {savingsMode === 'percent' ? (
                 <TextInput
@@ -539,6 +595,14 @@ export default function BudgetScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   Vas a reservar ahorro cuando lo decidas.
                 </ThemedText>
+              ) : null}
+              {savingsMode !== 'fixed' ? (
+                <View style={styles.currencyRow}>
+                  <CurrencySelect value={savingsCurrency} onChange={setSavingsCurrency} compact label="" />
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Moneda del ahorro
+                  </ThemedText>
+                </View>
               ) : null}
             </Card>
 
@@ -639,14 +703,19 @@ export default function BudgetScreen() {
                   Progreso del ahorro
                 </ThemedText>
                 <ThemedText type="smallBold">
-                  {formatCurrency(monthAvailable.savingsTotal)}
+                  {formatCurrency(monthAvailable.savingsTotal, savingsCurrency)}
                 </ThemedText>
               </View>
               <ProgressBar value={savingsProgressValue} />
-              <ThemedText type="small" themeColor="textSecondary">
-                Reservado este período: {formatCurrency(monthAvailable.savingsReserved)}
-              </ThemedText>
-            </Card>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Reservado este período: {formatCurrency(monthAvailable.savingsReserved, savingsCurrency)}
+                </ThemedText>
+                {savingsCurrency !== appCurrency ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Ahorro en {savingsCurrency}. No se descuenta del disponible en {appCurrency}.
+                  </ThemedText>
+                ) : null}
+              </Card>
 
             <Pressable
               onPress={handleClearSavings}
@@ -784,15 +853,15 @@ export default function BudgetScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   Disponible semanal
                 </ThemedText>
-                <ThemedText type="smallBold">{formatCurrency(weeklyEnabled)}</ThemedText>
+                <ThemedText type="smallBold">{formatCurrency(weeklyEnabled, appCurrency)}</ThemedText>
               </View>
               <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />
               <View style={styles.progressRow}>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Usado: {formatCurrency(weeklyUsed)}
+                  Usado: {formatCurrency(weeklyUsed, appCurrency)}
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Restante: {formatCurrency(weeklyRemaining)}
+                  Restante: {formatCurrency(weeklyRemaining, appCurrency)}
                 </ThemedText>
               </View>
             </Card>
@@ -826,7 +895,7 @@ export default function BudgetScreen() {
                     Total asignado
                   </ThemedText>
                   <ThemedText type="smallBold">
-                    {formatCurrency(goalSummary.totalTarget)}
+                    {formatCurrency(goalSummary.totalTarget, appCurrency)}
                   </ThemedText>
                 </View>
                 <View>
@@ -834,10 +903,15 @@ export default function BudgetScreen() {
                     Ahorrado
                   </ThemedText>
                   <ThemedText type="smallBold">
-                    {formatCurrency(goalSummary.totalSaved)}
+                    {formatCurrency(goalSummary.totalSaved, appCurrency)}
                   </ThemedText>
                 </View>
               </View>
+              {goalSummary.hasOtherCurrencies ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Hay metas en otras monedas. El resumen se muestra en {appCurrency}.
+                </ThemedText>
+              ) : null}
             </Card>
 
             <View style={styles.goalsStack}>
@@ -851,17 +925,22 @@ export default function BudgetScreen() {
                     <View style={styles.goalHeader}>
                       <ThemedText type="smallBold">{goal.title}</ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        {formatCurrency(goal.saved)} / {formatCurrency(goal.target)}
+                        {formatCurrency(goal.saved, goal.currency)} / {formatCurrency(goal.target, goal.currency)}
                       </ThemedText>
                     </View>
                     <ThemedText type="small" themeColor="textSecondary">
                       {formatGoalPlan(goal)}
                     </ThemedText>
+                    {goal.currency !== appCurrency ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Moneda: {goal.currency}
+                      </ThemedText>
+                    ) : null}
                     <ProgressBar value={goal.target ? goal.saved / goal.target : 0} />
                     {goal.mode === 'manual' || goal.frequency === 'manual' ? (
                       <View style={styles.goalAction}>
                         <TextInput
-                          placeholder="Monto a aportar"
+                          placeholder={`Monto a aportar (${goal.currency})`}
                           placeholderTextColor={theme.textSecondary}
                           style={[styles.input, { color: theme.text, borderColor: theme.border }]}
                           value={goalContribution[goal.id] ?? ''}
@@ -908,14 +987,23 @@ export default function BudgetScreen() {
                 value={goalTitle}
                 onChangeText={setGoalTitle}
               />
-              <TextInput
-                placeholder="Monto objetivo"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                value={goalTarget}
-                onChangeText={setGoalTarget}
-                keyboardType="numeric"
-              />
+              <View style={styles.inlineAmountRow}>
+                <TextInput
+                  placeholder="Monto objetivo"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, styles.inlineInput, { color: theme.text, borderColor: theme.border }]}
+                  value={goalTarget}
+                  onChangeText={setGoalTarget}
+                  keyboardType="numeric"
+                />
+                <CurrencySelect
+                  value={goalCurrency}
+                  onChange={setGoalCurrency}
+                  compact
+                  style={styles.inlineCurrency}
+                  label=""
+                />
+              </View>
               <TextInput
                 placeholder="Monto actual (opcional)"
                 placeholderTextColor={theme.textSecondary}
@@ -1031,7 +1119,7 @@ export default function BudgetScreen() {
                     ? 'Aportes manuales'
                     : goalMode === 'percent'
                       ? `Aportarás ${parseAmount(goalPercent) || 0}% ${goalSchedulePreview}`
-                      : `Aportarás ${formatCurrency(parseAmount(goalFixedAmount) || 0)} ${goalSchedulePreview}`}
+                      : `Aportarás ${formatCurrency(parseAmount(goalFixedAmount) || 0, goalCurrency)} ${goalSchedulePreview}`}
                 </ThemedText>
               </Card>
 
@@ -1113,6 +1201,23 @@ const styles = StyleSheet.create({
   manualAction: {
     gap: Spacing.two,
   },
+  currencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  inlineAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  inlineInput: {
+    flex: 1,
+  },
+  inlineCurrency: {
+    height: 44,
+    justifyContent: 'center',
+  },
   actionButton: {
     paddingVertical: Spacing.two,
     borderRadius: 14,
@@ -1177,6 +1282,11 @@ const styles = StyleSheet.create({
   goalForm: {
     gap: Spacing.two,
     padding: Spacing.three,
+  },
+  goalCurrencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   goalAction: {
     gap: Spacing.two,

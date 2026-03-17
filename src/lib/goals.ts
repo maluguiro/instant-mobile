@@ -1,4 +1,5 @@
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { CurrencyCode, getCachedAppSettings } from '@/lib/app-settings';
 
 export type GoalContributionMode = 'fixed' | 'percent' | 'manual';
 export type GoalFrequency = 'monthly' | 'weekly' | 'everyX' | 'manual';
@@ -8,6 +9,7 @@ export type SavingsGoal = {
   title: string;
   target: number;
   saved: number;
+  currency: CurrencyCode;
   mode: GoalContributionMode;
   fixedAmount: number;
   percent: number;
@@ -32,8 +34,10 @@ const defaultGoal: Pick<
 };
 
 function normalizeGoal(goal: SavingsGoal): SavingsGoal {
+  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return {
     ...defaultGoal,
+    currency: goal.currency ?? defaultCurrency,
     ...goal,
   };
 }

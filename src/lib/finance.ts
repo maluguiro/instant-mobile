@@ -1,6 +1,6 @@
-﻿import { FinanceSettings } from '@/lib/finance-settings';
+import { FinanceSettings } from '@/lib/finance-settings';
 import { Transaction } from '@/lib/types';
-import { getCachedAppSettings } from '@/lib/app-settings';
+import { CurrencyCode, getCachedAppSettings } from '@/lib/app-settings';
 
 export function parseDateInput(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
@@ -36,6 +36,18 @@ export function formatCurrency(value: number, currency?: string): string {
     const formatted = abs.toLocaleString('es-AR');
     return `${value < 0 ? '-' : ''}$${formatted}`;
   }
+}
+
+export function getTransactionCurrency(tx: Transaction, fallback?: CurrencyCode) {
+  return tx.currency ?? fallback ?? getCachedAppSettings().currency ?? 'ARS';
+}
+
+export function filterByCurrency(transactions: Transaction[], currency: CurrencyCode) {
+  return transactions.filter((tx) => getTransactionCurrency(tx) === currency);
+}
+
+export function hasOtherCurrencies(transactions: Transaction[], currency: CurrencyCode) {
+  return transactions.some((tx) => getTransactionCurrency(tx) !== currency);
 }
 
 export function formatShortDate(isoDate: string): string {
@@ -79,12 +91,13 @@ export function isSavingsCategory(category: string): boolean {
   return category.trim().toLowerCase() === 'ahorro';
 }
 
-export function calculateTotals(transactions: Transaction[]) {
+export function calculateTotals(transactions: Transaction[], currency?: CurrencyCode) {
   let income = 0;
   let expense = 0;
   let savingsManual = 0;
 
   for (const tx of transactions) {
+    if (currency && getTransactionCurrency(tx) !== currency) continue;
     if (isSavingsCategory(tx.category)) {
       savingsManual += Math.abs(tx.amount);
       continue;
@@ -130,9 +143,13 @@ export function calculateSavingsReserved(
 
 export function calculateAvailable(
   totals: { income: number; expense: number; savingsManual: number },
-  settings: FinanceSettings
+  settings: FinanceSettings,
+  currency?: CurrencyCode
 ) {
-  const savingsReserved = calculateSavingsReserved(totals, settings);
+  const savingsReserved =
+    currency && settings.savingsCurrency !== currency
+      ? 0
+      : calculateSavingsReserved(totals, settings);
   const savingsTotal = savingsReserved + totals.savingsManual;
   const available = totals.income - totals.expense - savingsTotal;
 
@@ -186,9 +203,10 @@ export function groupByDate(transactions: Transaction[]) {
   }));
 }
 
-export function summarizeByCategory(transactions: Transaction[]) {
+export function summarizeByCategory(transactions: Transaction[], currency?: CurrencyCode) {
   const map = new Map<string, number>();
   for (const tx of transactions) {
+    if (currency && getTransactionCurrency(tx) !== currency) continue;
     if (tx.type !== 'expense' || isSavingsCategory(tx.category)) continue;
     map.set(tx.category, (map.get(tx.category) ?? 0) + tx.amount);
   }

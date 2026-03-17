@@ -15,10 +15,12 @@ import {
   formatShortDate,
   formatTime,
   groupByDate,
+  hasOtherCurrencies,
   startOfWeek,
   toISODate,
 } from '@/lib/finance';
 import { useTransactions } from '@/hooks/use-transactions';
+import { useAppSettings } from '@/hooks/use-app-settings';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -42,6 +44,7 @@ function getNativeDateTimePicker() {
 export default function MovementsScreen() {
   const theme = useTheme();
   const { transactions, refresh } = useTransactions();
+  const { settings: appSettings } = useAppSettings();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
   const [search, setSearch] = useState('');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('Este mes');
@@ -129,6 +132,7 @@ export default function MovementsScreen() {
   const summary = useMemo(() => {
     return filtered.reduce(
       (acc, tx) => {
+        if (tx.currency !== appSettings.currency) return acc;
         if (tx.type === 'income') {
           acc.income += tx.amount;
         } else {
@@ -138,9 +142,13 @@ export default function MovementsScreen() {
       },
       { income: 0, expense: 0 }
     );
-  }, [filtered]);
+  }, [filtered, appSettings.currency]);
 
   const balance = summary.income - summary.expense;
+  const hasOtherCurrencyTransactions = useMemo(
+    () => hasOtherCurrencies(filtered, appSettings.currency),
+    [filtered, appSettings.currency]
+  );
 
   const handleExport = () => {
     Alert.alert(
@@ -193,7 +201,7 @@ export default function MovementsScreen() {
               Entradas
             </ThemedText>
             <ThemedText type="smallBold" style={{ color: theme.success }}>
-              {formatCurrency(summary.income)}
+              {formatCurrency(summary.income, appSettings.currency)}
             </ThemedText>
           </View>
           <View>
@@ -201,7 +209,7 @@ export default function MovementsScreen() {
               Salidas
             </ThemedText>
             <ThemedText type="smallBold" style={{ color: theme.accent }}>
-              {formatCurrency(summary.expense)}
+              {formatCurrency(summary.expense, appSettings.currency)}
             </ThemedText>
           </View>
           <View>
@@ -209,10 +217,15 @@ export default function MovementsScreen() {
               Balance
             </ThemedText>
             <ThemedText type="smallBold" style={{ color: balance >= 0 ? theme.success : theme.accent }}>
-              {formatCurrency(balance)}
+              {formatCurrency(balance, appSettings.currency)}
             </ThemedText>
           </View>
         </View>
+        {hasOtherCurrencyTransactions ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Totales calculados en {appSettings.currency}. Hay movimientos en otras monedas.
+          </ThemedText>
+        ) : null}
         <Pressable
           onPress={handleExport}
           style={({ pressed }) => [
@@ -264,8 +277,13 @@ export default function MovementsScreen() {
                         <ThemedText
                           type="smallBold"
                           style={{ color: isIncome ? theme.success : theme.accent }}>
-                          {isIncome ? '+' : '-'}{formatCurrency(item.amount)}
+                          {isIncome ? '+' : '-'}{formatCurrency(item.amount, item.currency)}
                         </ThemedText>
+                        {item.currency !== appSettings.currency ? (
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {item.currency}
+                          </ThemedText>
+                        ) : null}
                         <ThemedText type="small" themeColor="textSecondary">
                           {isIncome ? 'Entrada' : 'Salida'}
                         </ThemedText>

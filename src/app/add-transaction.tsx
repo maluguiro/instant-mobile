@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
+import { CurrencySelect } from '@/components/ui/currency-select';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
@@ -16,6 +17,7 @@ import { addCategory, getCategories } from '@/lib/categories';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
+import { useAppSettings } from '@/hooks/use-app-settings';
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') {
@@ -34,7 +36,6 @@ const INCOME_CATEGORIES = ['Sueldo', 'Freelance', 'Ventas', 'Intereses', 'Otros'
 const DATE_OPTIONS = ['Hoy', 'Ayer', 'Elegir fecha'] as const;
 
 type DateOption = (typeof DATE_OPTIONS)[number];
-
 type TransactionKind = 'expense' | 'income';
 
 export default function AddTransactionScreen() {
@@ -54,6 +55,8 @@ export default function AddTransactionScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const theme = useTheme();
+  const { settings: appSettings } = useAppSettings();
+  const [currency, setCurrency] = useState(appSettings.currency);
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +71,10 @@ export default function AddTransactionScreen() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setCurrency(appSettings.currency);
+  }, [appSettings.currency]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -145,6 +152,7 @@ export default function AddTransactionScreen() {
       id: String(Date.now()),
       type,
       amount: value,
+      currency,
       category,
       date: toISODate(selectedDate),
       method,
@@ -186,7 +194,7 @@ export default function AddTransactionScreen() {
         <SectionHeader title="Monto" />
         <View style={styles.amountRow}>
           <ThemedText type="subtitle" style={styles.currency}>
-            $
+            {currency}
           </ThemedText>
           <TextInput
             placeholder="0"
@@ -195,6 +203,13 @@ export default function AddTransactionScreen() {
             keyboardType="numeric"
             value={amount}
             onChangeText={setAmount}
+          />
+          <CurrencySelect
+            value={currency}
+            onChange={setCurrency}
+            label=""
+            compact
+            style={styles.currencyPicker}
           />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
@@ -371,12 +386,17 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   currency: {
-    fontSize: 28,
+    fontSize: 18,
+    minWidth: 44,
   },
   amountInput: {
     flex: 1,
     fontSize: 36,
     fontWeight: 700,
+  },
+  currencyPicker: {
+    height: 44,
+    justifyContent: 'center',
   },
   chips: {
     marginTop: Spacing.two,

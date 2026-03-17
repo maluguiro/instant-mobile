@@ -1,7 +1,7 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,6 +13,7 @@ export default function AppTabs() {
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
   const fabBottom = BottomTabInset + Math.max(insets.bottom, 10) + 10;
+  const fabScale = React.useRef(new Animated.Value(1)).current;
 
   return (
     <View style={styles.container}>
@@ -70,21 +71,39 @@ export default function AppTabs() {
         />
       </Tabs>
 
-      <Pressable
-        onPress={() => router.push('/add-transaction')}
-        style={({ pressed }) => [
-          styles.fab,
-          {
-            backgroundColor: colors.brand,
-            bottom: fabBottom,
-            opacity: pressed ? 0.92 : 1,
-          },
-        ]}>
-        <ThemedText style={[styles.fabText, { color: colors.onBrand }]}>+</ThemedText>
-        <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
-          <Text style={styles.fabLabelText}>Agregar</Text>
-        </ThemedView>
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale: fabScale }] }}>
+        <Pressable
+          onPress={() => router.push('/add-transaction')}
+          onPressIn={() => {
+            Animated.spring(fabScale, {
+              toValue: 0.97,
+              useNativeDriver: true,
+              speed: 28,
+              bounciness: 0,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(fabScale, {
+              toValue: 1,
+              useNativeDriver: true,
+              speed: 28,
+              bounciness: 0,
+            }).start();
+          }}
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              backgroundColor: colors.brand,
+              bottom: fabBottom,
+              opacity: pressed ? 0.92 : 1,
+            },
+          ]}>
+          <ThemedText style={[styles.fabText, { color: colors.onBrand }]}>+</ThemedText>
+          <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
+            <Text style={styles.fabLabelText}>Agregar</Text>
+          </ThemedView>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }

@@ -5,12 +5,14 @@ import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from '
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
+import { CurrencySelect } from '@/components/ui/currency-select';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useAppSettings } from '@/hooks/use-app-settings';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
 import {
   addDueDate,
@@ -72,6 +74,7 @@ function daysUntil(date: string) {
 
 export default function CalendarScreen() {
   const theme = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
 
   const [activeTab, setActiveTab] = useState<Tab>('Próximos vencimientos');
@@ -103,12 +106,14 @@ export default function CalendarScreen() {
   const [dueName, setDueName] = useState('');
   const [dueAmount, setDueAmount] = useState('');
   const [dueDate, setDueDate] = useState<Date>(new Date());
+  const [dueCurrency, setDueCurrency] = useState(appSettings.currency);
   const [dueCategory, setDueCategory] = useState('');
   const [dueMethod, setDueMethod] = useState('');
   const [dueNote, setDueNote] = useState('');
 
   const [recName, setRecName] = useState('');
   const [recAmount, setRecAmount] = useState('');
+  const [recCurrency, setRecCurrency] = useState(appSettings.currency);
   const [recFrequency, setRecFrequency] = useState<RecurringFrequency>('monthly');
   const [recEveryDays, setRecEveryDays] = useState('30');
   const [recNextDate, setRecNextDate] = useState<Date>(new Date());
@@ -120,6 +125,7 @@ export default function CalendarScreen() {
 
   const [instName, setInstName] = useState('');
   const [instAmount, setInstAmount] = useState('');
+  const [instCurrency, setInstCurrency] = useState(appSettings.currency);
   const [instTotal, setInstTotal] = useState('');
   const [instCurrent, setInstCurrent] = useState('');
   const [instNextDate, setInstNextDate] = useState<Date>(new Date());
@@ -157,6 +163,7 @@ export default function CalendarScreen() {
       id: item.id,
       name: item.name,
       amount: item.amount,
+      currency: item.currency,
       date: item.date,
     }));
     const recItems = activeRecurring.map((item) => ({
@@ -165,6 +172,7 @@ export default function CalendarScreen() {
       id: item.id,
       name: item.name,
       amount: item.amount,
+      currency: item.currency,
       date: item.nextDate,
     }));
     const instItems = activeInstallments.map((item) => ({
@@ -173,6 +181,7 @@ export default function CalendarScreen() {
       id: item.id,
       name: item.name,
       amount: item.amount,
+      currency: item.currency,
       date: item.nextDate,
     }));
     return [...dueItems, ...recItems, ...instItems].sort((a, b) => a.date.localeCompare(b.date));
@@ -199,12 +208,14 @@ export default function CalendarScreen() {
     setDueName('');
     setDueAmount('');
     setDueDate(new Date());
+    setDueCurrency(appSettings.currency);
     setDueCategory('');
     setDueMethod('');
     setDueNote('');
 
     setRecName('');
     setRecAmount('');
+    setRecCurrency(appSettings.currency);
     setRecFrequency('monthly');
     setRecEveryDays('30');
     setRecNextDate(new Date());
@@ -216,6 +227,7 @@ export default function CalendarScreen() {
 
     setInstName('');
     setInstAmount('');
+    setInstCurrency(appSettings.currency);
     setInstTotal('');
     setInstCurrent('');
     setInstNextDate(new Date());
@@ -238,6 +250,7 @@ export default function CalendarScreen() {
         id: String(Date.now()),
         name,
         amount,
+        currency: dueCurrency,
         date: toISODate(dueDate),
         category: dueCategory || undefined,
         method: dueMethod || undefined,
@@ -260,6 +273,7 @@ export default function CalendarScreen() {
         id: String(Date.now()),
         name,
         amount,
+        currency: recCurrency,
         frequency: recFrequency,
         everyDays: recFrequency === 'everyX' ? Math.max(parseAmount(recEveryDays), 1) : undefined,
         nextDate: toISODate(recNextDate),
@@ -288,6 +302,7 @@ export default function CalendarScreen() {
         id: String(Date.now()),
         name,
         amount,
+        currency: instCurrency,
         total,
         current: Math.min(current, total),
         nextDate: toISODate(instNextDate),
@@ -548,7 +563,14 @@ export default function CalendarScreen() {
                       ) : null}
                     </View>
                     <View style={styles.itemRight}>
-                      <ThemedText type="smallBold">{formatCurrency(item.amount)}</ThemedText>
+                      <ThemedText type="smallBold">
+                        {formatCurrency(item.amount, item.currency)}
+                      </ThemedText>
+                      {item.currency !== appSettings.currency ? (
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {item.currency}
+                        </ThemedText>
+                      ) : null}
                       <ThemedText type="small" style={{ color: statusColor }}>
                         {statusLabel}
                       </ThemedText>
@@ -633,7 +655,14 @@ export default function CalendarScreen() {
                       </View>
                     </View>
                     <View style={styles.itemRight}>
-                      <ThemedText type="smallBold">{formatCurrency(item.amount)}</ThemedText>
+                      <ThemedText type="smallBold">
+                        {formatCurrency(item.amount, item.currency)}
+                      </ThemedText>
+                      {item.currency !== appSettings.currency ? (
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {item.currency}
+                        </ThemedText>
+                      ) : null}
                       <ThemedText type="small" themeColor="textSecondary">
                         {item.method || 'Método opcional'}
                       </ThemedText>
@@ -676,7 +705,14 @@ export default function CalendarScreen() {
                     </View>
                   </View>
                   <View style={styles.itemRight}>
-                    <ThemedText type="smallBold">{formatCurrency(item.amount)}</ThemedText>
+                    <ThemedText type="smallBold">
+                      {formatCurrency(item.amount, item.currency)}
+                    </ThemedText>
+                    {item.currency !== appSettings.currency ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {item.currency}
+                      </ThemedText>
+                    ) : null}
                     <ThemedText type="small" themeColor="textSecondary">
                       Faltan {Math.max(item.total - item.current, 0)}
                     </ThemedText>
@@ -729,6 +765,13 @@ export default function CalendarScreen() {
                   value={dueAmount}
                   onChangeText={setDueAmount}
                   keyboardType="numeric"
+                />
+                <CurrencySelect
+                  value={dueCurrency}
+                  onChange={setDueCurrency}
+                  compact
+                  style={styles.inlineCurrency}
+                  label=""
                 />
                 <Pressable
                   onPress={() => {
@@ -812,6 +855,13 @@ export default function CalendarScreen() {
                   value={recAmount}
                   onChangeText={setRecAmount}
                   keyboardType="numeric"
+                />
+                <CurrencySelect
+                  value={recCurrency}
+                  onChange={setRecCurrency}
+                  compact
+                  style={styles.inlineCurrency}
+                  label=""
                 />
 
                 <View style={styles.inlineLabel}>
@@ -976,6 +1026,13 @@ export default function CalendarScreen() {
                   value={instAmount}
                   onChangeText={setInstAmount}
                   keyboardType="numeric"
+                />
+                <CurrencySelect
+                  value={instCurrency}
+                  onChange={setInstCurrency}
+                  compact
+                  style={styles.inlineCurrency}
+                  label=""
                 />
                 <TextInput
                   placeholder="Cantidad total de cuotas"
@@ -1270,6 +1327,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 15,
     fontWeight: '600',
+  },
+  inlineCurrency: {
+    height: 44,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
   },
   dateBox: {
     borderWidth: 1,

@@ -28,6 +28,6 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     borderWidth: 1,
-    padding: Spacing.four,
+    padding: Spacing.three,
   },
 });
