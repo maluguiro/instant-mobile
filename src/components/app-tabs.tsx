@@ -80,7 +80,7 @@ export default function AppTabs() {
             opacity: pressed ? 0.92 : 1,
           },
         ]}>
-        <ThemedText style={styles.fabText}>+</ThemedText>
+        <ThemedText style={[styles.fabText, { color: colors.onBrand }]}>+</ThemedText>
         <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
           <Text style={styles.fabLabelText}>Agregar</Text>
         </ThemedView>

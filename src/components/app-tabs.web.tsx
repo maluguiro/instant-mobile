@@ -48,7 +48,7 @@ export default function AppTabs() {
           { backgroundColor: colors.brand },
           pressed && styles.pressedFab,
         ]}>
-        <Text style={styles.fabText}>+ Agregar</Text>
+        <Text style={[styles.fabText, { color: colors.onBrand }]}>+ Agregar</Text>
       </Pressable>
     </Tabs>
   );
@@ -121,7 +121,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   fabText: {
-    color: '#1f1b18',
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '700',

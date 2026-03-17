@@ -45,7 +45,7 @@ export default function OnboardingScreen() {
       <Pressable
         onPress={handleContinue}
         style={[styles.cta, { backgroundColor: theme.brand }]}>
-        <ThemedText type="smallBold" style={styles.ctaText}>
+        <ThemedText type="smallBold" style={[styles.ctaText, { color: theme.onBrand }]}>
           Comenzar
         </ThemedText>
       </Pressable>

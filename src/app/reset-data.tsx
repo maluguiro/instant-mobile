@@ -5,9 +5,11 @@ import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { clearAllData } from '@/lib/storage';
 
 export default function ResetDataScreen() {
+  const theme = useTheme();
   const handleReset = () => {
     Alert.alert(
       'Borrar datos',
@@ -40,8 +42,14 @@ export default function ResetDataScreen() {
         <ThemedText type="small" themeColor="textSecondary">
           Esto eliminará movimientos, metas y configuraciones locales guardadas en este dispositivo.
         </ThemedText>
-        <Pressable onPress={handleReset} style={({ pressed }) => [styles.dangerButton, pressed && styles.pressed]}>
-          <ThemedText type="smallBold" style={styles.dangerText}>
+        <Pressable
+          onPress={handleReset}
+          style={({ pressed }) => [
+            styles.dangerButton,
+            { backgroundColor: theme.accentSoft },
+            pressed && styles.pressed,
+          ]}>
+          <ThemedText type="smallBold" style={[styles.dangerText, { color: theme.accent }]}>
             Borrar datos locales
           </ThemedText>
         </Pressable>
@@ -59,7 +67,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#F1D9D2',
   },
   dangerText: {
     color: '#7A3B2A',

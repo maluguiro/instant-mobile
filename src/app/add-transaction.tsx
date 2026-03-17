@@ -331,7 +331,7 @@ export default function AddTransactionScreen() {
           { backgroundColor: theme.brand },
           pressed && styles.buttonPressed,
         ]}>
-        <ThemedText type="smallBold" style={styles.saveText}>
+        <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
           Guardar movimiento
         </ThemedText>
       </Pressable>

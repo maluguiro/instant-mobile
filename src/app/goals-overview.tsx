@@ -80,9 +80,9 @@ export default function GoalsOverviewScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.buttonPressed,
           ]}>
-          <ThemedText type="smallBold" style={styles.primaryText}>
-            Nueva meta
-          </ThemedText>
+        <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+          Nueva meta
+        </ThemedText>
         </Pressable>
         <Pressable
           onPress={handleDeleteGoal}
@@ -154,7 +154,7 @@ export default function GoalsOverviewScreen() {
                   { backgroundColor: theme.accent },
                   pressed && styles.buttonPressed,
                 ]}>
-                <ThemedText type="smallBold" style={styles.primaryText}>
+                <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
                   Eliminar
                 </ThemedText>
               </Pressable>

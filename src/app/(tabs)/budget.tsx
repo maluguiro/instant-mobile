@@ -467,7 +467,7 @@ export default function BudgetScreen() {
   const savingsProgressValue =
     savingsProgressTarget > 0 ? monthAvailable.savingsTotal / savingsProgressTarget : 0;
   const savePlanColor = savePlanDone ? theme.brandSoft : theme.brand;
-  const savePlanTextColor = savePlanDone ? theme.text : '#ffffff';
+  const savePlanTextColor = savePlanDone ? theme.text : theme.onBrand;
 
   return (
     <Screen>
@@ -618,9 +618,9 @@ export default function BudgetScreen() {
                       { backgroundColor: theme.brand },
                       pressed && styles.buttonPressed,
                     ]}>
-                    <ThemedText type="smallBold" style={styles.saveText}>
-                      {manualSavingsDone ? 'Registrado' : 'Debitar para ahorro'}
-                    </ThemedText>
+                      <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
+                        {manualSavingsDone ? 'Registrado' : 'Debitar para ahorro'}
+                      </ThemedText>
                   </Pressable>
                 </View>
               ) : null}
@@ -761,9 +761,9 @@ export default function BudgetScreen() {
                       { backgroundColor: theme.brand },
                       pressed && styles.buttonPressed,
                     ]}>
-                    <ThemedText type="smallBold" style={styles.saveText}>
-                      {weeklyManualDone ? 'Habilitado' : 'Habilitar disponible semanal'}
-                    </ThemedText>
+                      <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
+                        {weeklyManualDone ? 'Habilitado' : 'Habilitar disponible semanal'}
+                      </ThemedText>
                   </Pressable>
                 </View>
               )}
@@ -877,7 +877,7 @@ export default function BudgetScreen() {
                             { backgroundColor: theme.brand },
                             pressed && styles.buttonPressed,
                           ]}>
-                          <ThemedText type="smallBold" style={styles.saveText}>
+                          <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
                             {goalContributionDone[goal.id] ? 'Aporte listo' : 'Aportar a meta'}
                           </ThemedText>
                         </Pressable>
@@ -1042,7 +1042,7 @@ export default function BudgetScreen() {
                   { backgroundColor: theme.brand },
                   pressed && styles.buttonPressed,
                 ]}>
-                <ThemedText type="smallBold" style={styles.saveText}>
+                <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
                   {goalAddedDone ? 'Meta guardada' : 'Guardar meta'}
                 </ThemedText>
               </Pressable>

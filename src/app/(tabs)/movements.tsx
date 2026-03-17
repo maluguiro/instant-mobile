@@ -436,7 +436,7 @@ export default function MovementsScreen() {
                   { backgroundColor: theme.brand },
                   pressed && styles.pressed,
                 ]}>
-                <ThemedText type="smallBold" style={styles.closeText}>
+                <ThemedText type="smallBold" style={[styles.closeText, { color: theme.onBrand }]}>
                   Listo
                 </ThemedText>
               </Pressable>

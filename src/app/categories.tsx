@@ -182,7 +182,7 @@ export default function CategoriesScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.pressed,
           ]}>
-          <ThemedText type="smallBold" style={styles.primaryText}>
+          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
             Guardar categoría
           </ThemedText>
         </Pressable>
@@ -214,7 +214,7 @@ export default function CategoriesScreen() {
                   { backgroundColor: theme.brand },
                   pressed && styles.pressed,
                 ]}>
-                <ThemedText type="smallBold" style={styles.primaryText}>
+                <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
                   Guardar
                 </ThemedText>
               </Pressable>

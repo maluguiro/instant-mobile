@@ -264,7 +264,7 @@ export default function ExportDataScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.pressed,
           ]}>
-          <ThemedText type="smallBold" style={styles.primaryText}>
+          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
             Exportar movimientos del período
           </ThemedText>
         </Pressable>
@@ -290,7 +290,7 @@ export default function ExportDataScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.pressed,
           ]}>
-          <ThemedText type="smallBold" style={styles.primaryText}>
+          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
             Exportar resumen
           </ThemedText>
         </Pressable>
@@ -308,7 +308,7 @@ export default function ExportDataScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.pressed,
           ]}>
-          <ThemedText type="smallBold" style={styles.primaryText}>
+          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
             Exportar todo
           </ThemedText>
         </Pressable>
