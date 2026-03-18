@@ -1001,6 +1001,9 @@ export default function BudgetScreen() {
                       key={entry.currency}
                       style={[styles.goalSummaryPage, { width: goalSummaryWidth || '100%' }]}>
                       <View style={styles.goalSummaryHeader}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Resumen de metas
+                        </ThemedText>
                         <View style={styles.summaryCurrencyHint}>
                           <Pill label={entry.currency} tone="accent" />
                           {goalSummaryCount > 1 ? (
@@ -1022,13 +1025,13 @@ export default function BudgetScreen() {
                         </View>
                       </View>
                       <View style={styles.goalSummaryRow}>
-                        <View>
+                        <View style={styles.goalSummaryItem}>
                           <ThemedText type="small" themeColor="textSecondary">
                             Metas activas
                           </ThemedText>
                           <ThemedText type="smallBold">{entry.count}</ThemedText>
                         </View>
-                        <View>
+                        <View style={styles.goalSummaryItem}>
                           <ThemedText type="small" themeColor="textSecondary">
                             Total asignado
                           </ThemedText>
@@ -1036,7 +1039,7 @@ export default function BudgetScreen() {
                             {formatCurrency(entry.totalTarget, entry.currency)}
                           </ThemedText>
                         </View>
-                        <View>
+                        <View style={styles.goalSummaryItem}>
                           <ThemedText type="small" themeColor="textSecondary">
                             Ahorrado
                           </ThemedText>
@@ -1104,6 +1107,7 @@ export default function BudgetScreen() {
                         onPress={() => handleEditGoal(goal)}
                         style={({ pressed }) => [
                           styles.outlineButton,
+                          styles.goalActionButton,
                           { borderColor: theme.border },
                           pressed && styles.buttonPressed,
                         ]}>
@@ -1115,6 +1119,7 @@ export default function BudgetScreen() {
                         onPress={() => handleRemoveGoal(goal.id)}
                         style={({ pressed }) => [
                           styles.outlineButton,
+                          styles.goalActionButton,
                           { borderColor: theme.border },
                           pressed && styles.buttonPressed,
                         ]}>
@@ -1374,9 +1379,6 @@ const styles = StyleSheet.create({
   goalSummaryPage: {
     gap: Spacing.two,
   },
-  goalSummaryHeader: {
-    alignItems: 'flex-end',
-  },
   summaryCurrencyHint: {
     alignItems: 'center',
     gap: Spacing.one,
@@ -1419,6 +1421,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: 14,
     alignItems: 'center',
+    width: '100%',
   },
   outlineButton: {
     paddingVertical: Spacing.two,
@@ -1464,6 +1467,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
+  goalSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  goalSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   goalsStack: {
     gap: Spacing.three,
   },
@@ -1491,6 +1503,9 @@ const styles = StyleSheet.create({
   goalActionsRow: {
     flexDirection: 'row',
     gap: Spacing.two,
+  },
+  goalActionButton: {
+    flex: 1,
   },
   goalFormActions: {
     gap: Spacing.two,

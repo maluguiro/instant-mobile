@@ -280,7 +280,6 @@ export default function HomeScreen() {
       </Pressable>
 
       <Card>
-        <SectionHeader title="Resumen del mes" />
         <View
           style={styles.carouselViewport}
           onLayout={(event) => {
@@ -306,6 +305,7 @@ export default function HomeScreen() {
                 key={entry.currency}
                 style={[styles.carouselPage, { width: summaryWidth || '100%' }]}>
                 <View style={styles.summaryHeaderRow}>
+                  <ThemedText type="smallBold">Resumen del mes</ThemedText>
                   <View style={styles.currencyHint}>
                     <Pill label={entry.currency} tone="accent" />
                     {monthData.length > 1 ? (
@@ -530,7 +530,8 @@ const styles = StyleSheet.create({
   },
   summaryHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: Spacing.one,
   },
   statItem: {
