@@ -1,12 +1,13 @@
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, LayoutAnimation, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, LayoutAnimation, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { CurrencySelect } from '@/components/ui/currency-select';
+import { Pill } from '@/components/ui/pill';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -37,6 +38,7 @@ import {
   GoalContributionMode,
   GoalFrequency,
   getSavingsGoals,
+  updateSavingsGoal,
   removeSavingsGoal,
   SavingsGoal,
 } from '@/lib/goals';
@@ -162,6 +164,11 @@ export default function BudgetScreen() {
   const [goalWeekday, setGoalWeekday] = useState(1);
   const [goalCurrency, setGoalCurrency] = useState(appSettings.currency);
   const [goalContribution, setGoalContribution] = useState<Record<string, string>>({});
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalEditDone, setGoalEditDone] = useState(false);
+  const [goalSummaryIndex, setGoalSummaryIndex] = useState(0);
+  const [goalSummaryWidth, setGoalSummaryWidth] = useState(0);
+  const goalSummaryRef = useRef<ScrollView>(null);
 
   const [savePlanDone, setSavePlanDone] = useState(false);
   const [goalAddedDone, setGoalAddedDone] = useState(false);
@@ -204,7 +211,17 @@ export default function BudgetScreen() {
     }
   }, [params.tab]);
 
+  useEffect(() => {
+    if (goalSummaryWidth > 0) {
+      goalSummaryRef.current?.scrollTo({
+        x: goalSummaryIndex * goalSummaryWidth,
+        animated: true,
+      });
+    }
+  }, [goalSummaryIndex, goalSummaryWidth]);
+
   const appCurrency = appSettings.currency;
+  const safeGoals = Array.isArray(goals) ? goals : [];
   const monthTransactions = useMemo(
     () => filterByMonth(transactions, new Date()),
     [transactions]
@@ -311,13 +328,47 @@ export default function BudgetScreen() {
     return `Plan semanal de ${formatCurrency(parseAmount(weeklyAmount) || 0, appCurrency)}.`;
   }, [weeklyMode, weeklyAmount, appCurrency]);
 
-  const goalSummary = useMemo(() => {
-    const sameCurrency = goals.filter((goal) => goal.currency === appCurrency);
-    const totalTarget = sameCurrency.reduce((acc, goal) => acc + goal.target, 0);
-    const totalSaved = sameCurrency.reduce((acc, goal) => acc + goal.saved, 0);
-    const hasOtherCurrencies = goals.some((goal) => goal.currency !== appCurrency);
-    return { totalTarget, totalSaved, hasOtherCurrencies };
-  }, [goals, appCurrency]);
+  const goalSummaryData = useMemo(() => {
+    const currencies = Array.from(
+      new Set(safeGoals.map((goal) => goal.currency ?? appCurrency))
+    );
+    const normalizedCurrencies =
+      currencies.length > 0
+        ? currencies.includes(appCurrency)
+          ? [
+              appCurrency,
+              ...currencies.filter((currency) => currency !== appCurrency),
+            ]
+          : currencies
+        : [appCurrency];
+
+    return normalizedCurrencies.map((currency) => {
+      const items = safeGoals.filter((goal) => goal.currency === currency);
+      const totalTarget = items.reduce((acc, goal) => acc + goal.target, 0);
+      const totalSaved = items.reduce((acc, goal) => acc + goal.saved, 0);
+      return {
+        currency,
+        count: items.length,
+        totalTarget,
+        totalSaved,
+      };
+    });
+  }, [safeGoals, appCurrency]);
+
+  const safeGoalSummaryData = Array.isArray(goalSummaryData) ? goalSummaryData : [];
+  const goalSummaryCount = safeGoalSummaryData.length;
+  const goalsCount = goalsCount;
+
+  useEffect(() => {
+    if (goalSummaryIndex >= goalSummaryCount) {
+      setGoalSummaryIndex(0);
+    }
+  }, [goalSummaryIndex, goalSummaryCount]);
+
+  const editingGoal = useMemo(
+    () => safeGoals.find((goal) => goal.id === editingGoalId) ?? null,
+    [safeGoals, editingGoalId]
+  );
 
   const goalSchedulePreview = useMemo(
     () =>
@@ -392,17 +443,48 @@ export default function BudgetScreen() {
     setTimeout(() => setWeeklyManualDone(false), 1400);
   };
 
-  const handleAddGoal = async () => {
+  const resetGoalForm = useCallback(() => {
+    setGoalTitle('');
+    setGoalTarget('');
+    setGoalSaved('');
+    setGoalFixedAmount('');
+    setGoalPercent('');
+    setGoalEveryDays('30');
+    setGoalMonthDay('1');
+    setGoalWeekday(1);
+    setGoalMode('fixed');
+    setGoalFrequency('monthly');
+    setGoalCurrency(appSettings.currency);
+    setEditingGoalId(null);
+  }, [appSettings.currency]);
+
+  const handleEditGoal = useCallback((goal: SavingsGoal) => {
+    setEditingGoalId(goal.id);
+    setGoalTitle(goal.title);
+    setGoalTarget(String(goal.target));
+    setGoalSaved(String(goal.saved));
+    setGoalCurrency(goal.currency);
+    setGoalMode(goal.mode);
+    setGoalFixedAmount(String(goal.fixedAmount));
+    setGoalPercent(String(goal.percent));
+    setGoalFrequency(goal.frequency);
+    setGoalEveryDays(String(goal.everyDays));
+    setGoalMonthDay(String(goal.monthDay));
+    setGoalWeekday(goal.weekday);
+  }, []);
+
+  const handleSaveGoal = async () => {
     const title = goalTitle.trim();
     const target = Math.max(parseAmount(goalTarget), 0);
-    const saved = Math.max(parseAmount(goalSaved), 0);
+    const savedInput = Math.max(parseAmount(goalSaved), 0);
+    const saved =
+      editingGoalId && goalSaved.trim() === '' ? editingGoal?.saved ?? 0 : savedInput;
     if (!title || !target) {
       Alert.alert('Completá la meta', 'Agregá un nombre y un monto objetivo válido.');
       return;
     }
 
-    const goal: SavingsGoal = {
-      id: String(Date.now()),
+    const payload = {
       title,
       target,
       saved,
@@ -414,19 +496,30 @@ export default function BudgetScreen() {
       everyDays: Math.max(parseAmount(goalEveryDays), 1),
       monthDay: Math.max(parseAmount(goalMonthDay), 1),
       weekday: goalWeekday,
+    };
+
+    if (editingGoalId) {
+      const next = await updateSavingsGoal(editingGoalId, (goal) => ({
+        ...goal,
+        ...payload,
+      }));
+      setGoals(next);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setGoalEditDone(true);
+      setTimeout(() => setGoalEditDone(false), 1400);
+      resetGoalForm();
+      return;
+    }
+
+    const goal: SavingsGoal = {
+      id: String(Date.now()),
       createdAt: new Date().toISOString(),
+      ...payload,
     };
 
     const next = await addSavingsGoal(goal);
     setGoals(next);
-    setGoalTitle('');
-    setGoalTarget('');
-    setGoalSaved('');
-    setGoalFixedAmount('');
-    setGoalPercent('');
-    setGoalEveryDays('30');
-    setGoalMonthDay('1');
-    setGoalWeekday(1);
+    resetGoalForm();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setGoalAddedDone(true);
     setTimeout(() => setGoalAddedDone(false), 1400);
@@ -883,44 +976,88 @@ export default function BudgetScreen() {
         {activeTab === 'Metas' ? (
           <View style={styles.sectionBody}>
             <Card variant="soft" style={styles.summaryCard}>
-              <View style={styles.goalSummaryRow}>
-                <View>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Metas activas
-                  </ThemedText>
-                  <ThemedText type="smallBold">{goals.length}</ThemedText>
-                </View>
-                <View>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Total asignado
-                  </ThemedText>
-                  <ThemedText type="smallBold">
-                    {formatCurrency(goalSummary.totalTarget, appCurrency)}
-                  </ThemedText>
-                </View>
-                <View>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Ahorrado
-                  </ThemedText>
-                  <ThemedText type="smallBold">
-                    {formatCurrency(goalSummary.totalSaved, appCurrency)}
-                  </ThemedText>
-                </View>
+              <View
+                style={styles.goalSummaryViewport}
+                onLayout={(event) => {
+                  setGoalSummaryWidth(event.nativeEvent.layout.width);
+                }}>
+                <ScrollView
+                  ref={goalSummaryRef}
+                  horizontal
+                  pagingEnabled
+                  decelerationRate="fast"
+                  snapToAlignment="start"
+                  snapToInterval={goalSummaryWidth || 1}
+                  showsHorizontalScrollIndicator={false}
+                  scrollEnabled={goalSummaryCount > 1}
+                  contentContainerStyle={styles.goalSummaryContent}
+                  onMomentumScrollEnd={(event) => {
+                    if (!goalSummaryWidth) return;
+                    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / goalSummaryWidth);
+                    setGoalSummaryIndex(Math.max(0, Math.min(nextIndex, goalSummaryCount - 1)));
+                  }}>
+                  {safeGoalSummaryData.map((entry) => (
+                    <View
+                      key={entry.currency}
+                      style={[styles.goalSummaryPage, { width: goalSummaryWidth || '100%' }]}>
+                      <View style={styles.goalSummaryHeader}>
+                        <View style={styles.summaryCurrencyHint}>
+                          <Pill label={entry.currency} tone="accent" />
+                          {goalSummaryCount > 1 ? (
+                            <View style={styles.summaryDotRow}>
+                              {safeGoalSummaryData.map((item, index) => (
+                                <View
+                                  key={item.currency}
+                                  style={[
+                                    styles.summaryDot,
+                                    {
+                                      backgroundColor:
+                                        index === goalSummaryIndex ? theme.brand : theme.border,
+                                    },
+                                  ]}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={styles.goalSummaryRow}>
+                        <View>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Metas activas
+                          </ThemedText>
+                          <ThemedText type="smallBold">{entry.count}</ThemedText>
+                        </View>
+                        <View>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Total asignado
+                          </ThemedText>
+                          <ThemedText type="smallBold">
+                            {formatCurrency(entry.totalTarget, entry.currency)}
+                          </ThemedText>
+                        </View>
+                        <View>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Ahorrado
+                          </ThemedText>
+                          <ThemedText type="smallBold">
+                            {formatCurrency(entry.totalSaved, entry.currency)}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
-              {goalSummary.hasOtherCurrencies ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Hay metas en otras monedas. El resumen se muestra en {appCurrency}.
-                </ThemedText>
-              ) : null}
             </Card>
 
             <View style={styles.goalsStack}>
-              {goals.length === 0 ? (
+              {goalsCount === 0 ? (
                 <ThemedText type="small" themeColor="textSecondary">
                   Todavía no creaste metas de ahorro.
                 </ThemedText>
               ) : (
-                goals.map((goal) => (
+                safeGoals.map((goal) => (
                   <Card key={goal.id} variant="soft" style={styles.goalCard}>
                     <View style={styles.goalHeader}>
                       <ThemedText type="smallBold">{goal.title}</ThemedText>
@@ -962,17 +1099,30 @@ export default function BudgetScreen() {
                         </Pressable>
                       </View>
                     ) : null}
-                    <Pressable
-                      onPress={() => handleRemoveGoal(goal.id)}
-                      style={({ pressed }) => [
-                        styles.outlineButton,
-                        { borderColor: theme.border },
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <ThemedText type="smallBold" themeColor="textSecondary">
-                        Eliminar meta
-                      </ThemedText>
-                    </Pressable>
+                    <View style={styles.goalActionsRow}>
+                      <Pressable
+                        onPress={() => handleEditGoal(goal)}
+                        style={({ pressed }) => [
+                          styles.outlineButton,
+                          { borderColor: theme.border },
+                          pressed && styles.buttonPressed,
+                        ]}>
+                        <ThemedText type="smallBold" themeColor="textSecondary">
+                          Editar
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleRemoveGoal(goal.id)}
+                        style={({ pressed }) => [
+                          styles.outlineButton,
+                          { borderColor: theme.border },
+                          pressed && styles.buttonPressed,
+                        ]}>
+                        <ThemedText type="smallBold" themeColor="textSecondary">
+                          Eliminar meta
+                        </ThemedText>
+                      </Pressable>
+                    </View>
                   </Card>
                 ))
               )}
@@ -1123,17 +1273,38 @@ export default function BudgetScreen() {
                 </ThemedText>
               </Card>
 
-              <Pressable
-                onPress={handleAddGoal}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  { backgroundColor: theme.brand },
-                  pressed && styles.buttonPressed,
-                ]}>
-                <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
-                  {goalAddedDone ? 'Meta guardada' : 'Guardar meta'}
-                </ThemedText>
-              </Pressable>
+              <View style={styles.goalFormActions}>
+                <Pressable
+                  onPress={handleSaveGoal}
+                  style={({ pressed }) => [
+                    styles.saveButton,
+                    { backgroundColor: theme.brand },
+                    pressed && styles.buttonPressed,
+                  ]}>
+                  <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
+                    {editingGoalId
+                      ? goalEditDone
+                        ? 'Cambios guardados'
+                        : 'Guardar cambios'
+                      : goalAddedDone
+                        ? 'Meta guardada'
+                        : 'Guardar meta'}
+                  </ThemedText>
+                </Pressable>
+                {editingGoalId ? (
+                  <Pressable
+                    onPress={resetGoalForm}
+                    style={({ pressed }) => [
+                      styles.outlineButton,
+                      { borderColor: theme.border },
+                      pressed && styles.buttonPressed,
+                    ]}>
+                    <ThemedText type="smallBold" themeColor="textSecondary">
+                      Cancelar ediciÃ³n
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
             </Card>
           </View>
         ) : null}
@@ -1193,6 +1364,32 @@ const styles = StyleSheet.create({
   summaryCard: {
     padding: Spacing.three,
     gap: Spacing.one,
+  },
+  goalSummaryViewport: {
+    width: '100%',
+  },
+  goalSummaryContent: {
+    alignItems: 'flex-start',
+  },
+  goalSummaryPage: {
+    gap: Spacing.two,
+  },
+  goalSummaryHeader: {
+    alignItems: 'flex-end',
+  },
+  summaryCurrencyHint: {
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  summaryDotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
   },
   innerCard: {
     padding: Spacing.three,
@@ -1291,6 +1488,13 @@ const styles = StyleSheet.create({
   goalAction: {
     gap: Spacing.two,
   },
+  goalActionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  goalFormActions: {
+    gap: Spacing.two,
+  },
   separator: {
     height: 1,
     backgroundColor: '#e6d4c6',
@@ -1300,3 +1504,6 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+
+
