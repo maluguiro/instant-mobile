@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { getCachedAuthState, loadAuthState, subscribeAuth, AuthUser } from '@/lib/auth';
+import { getCachedAuthState, loadAuthState, subscribeAuth, AuthUser, fetchProfile, signOut } from '@/lib/auth';
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(getCachedAuthState().user);
@@ -16,6 +16,18 @@ export function useAuth() {
       setUser(state.user);
       setBiometricsEnabled(state.biometricsEnabled ?? false);
       setLoading(false);
+      if (state.token) {
+        fetchProfile()
+          .then((fresh) => {
+            if (!active) return;
+            setUser(fresh);
+          })
+          .catch(async () => {
+            if (!active) return;
+            await signOut();
+            setUser(null);
+          });
+      }
     });
     return subscribeAuth((state) => {
       if (!active) return;

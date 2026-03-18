@@ -1,4 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { apiRequest } from '@/lib/api';
 
 export type AuthUser = {
   id: string;
@@ -7,55 +8,33 @@ export type AuthUser = {
   createdAt: string;
 };
 
-export type AuthCredentials = {
-  name: string;
-  email: string;
-  password: string;
-};
-
 type AuthState = {
+  token: string | null;
   user: AuthUser | null;
-  credentials?: AuthCredentials | null;
-  biometricsEnabled?: boolean;
-  resetRequestedAt?: string | null;
+  biometricsEnabled: boolean;
 };
-
-const STORAGE_KEY = 'instant:auth';
 
 const listeners = new Set<(state: AuthState) => void>();
-let cachedState: AuthState = { user: null, credentials: null, biometricsEnabled: false, resetRequestedAt: null };
+let cachedState: AuthState = { token: null, user: null, biometricsEnabled: false };
 
-function normalizeState(state: AuthState): AuthState {
-  return {
-    user: state.user ?? null,
-    credentials: state.credentials ?? null,
-    biometricsEnabled: state.biometricsEnabled ?? false,
-    resetRequestedAt: state.resetRequestedAt ?? null,
-  };
+function notify(next: AuthState) {
+  listeners.forEach((listener) => listener(next));
 }
 
-export async function loadAuthState(): Promise<AuthState> {
-  const stored = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    cachedState = normalizeState({ user: null });
-    return cachedState;
+function normalizeState(state: AuthState): AuthState {
+  const normalized = {
+    token: state.token ?? null,
+    user: state.user ?? null,
+    biometricsEnabled: state.biometricsEnabled ?? false,
+  };
+  if (!normalized.token) {
+    normalized.user = null;
   }
-  try {
-    const parsed = JSON.parse(stored) as AuthState;
-    cachedState = normalizeState(parsed);
-    return parsed;
-  } catch {
-    cachedState = normalizeState({ user: null });
-    return cachedState;
-  }
+  return normalized;
 }
 
 export function getCachedAuthState() {
   return cachedState;
-}
-
-function notify(next: AuthState) {
-  listeners.forEach((listener) => listener(next));
 }
 
 export function subscribeAuth(listener: (state: AuthState) => void) {
@@ -63,72 +42,86 @@ export function subscribeAuth(listener: (state: AuthState) => void) {
   return () => listeners.delete(listener);
 }
 
+export async function loadAuthState(): Promise<AuthState> {
+  const stored = await getItem<AuthState>(STORAGE_KEYS.auth, {
+    token: null,
+    user: null,
+    biometricsEnabled: false,
+  });
+  cachedState = normalizeState(stored);
+  return cachedState;
+}
+
 export async function saveAuthState(state: AuthState) {
   const normalized = normalizeState(state);
   cachedState = normalized;
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+  await setItem<AuthState>(STORAGE_KEYS.auth, normalized);
   notify(normalized);
 }
 
+export async function signUp(name: string, email: string, password: string) {
+  const response = await apiRequest<{ token: string; user: AuthUser }>('/auth/register', {
+    method: 'POST',
+    body: { name, email, password },
+  });
+
+  await saveAuthState({
+    token: response.token,
+    user: response.user,
+    biometricsEnabled: cachedState.biometricsEnabled,
+  });
+
+  return response.user;
+}
+
 export async function signIn(email: string, password: string) {
+  const response = await apiRequest<{ token: string; user: AuthUser }>('/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  });
+
+  await saveAuthState({
+    token: response.token,
+    user: response.user,
+    biometricsEnabled: cachedState.biometricsEnabled,
+  });
+
+  return response.user;
+}
+
+export async function fetchProfile() {
   const state = await loadAuthState();
-  const credentials = state.credentials;
-  if (!credentials) {
-    throw new Error('No hay una cuenta creada todavía.');
+  if (!state.token) {
+    throw new Error('No hay sesión activa.');
   }
-  if (credentials.email !== email.trim() || credentials.password !== password) {
-    throw new Error('Email o contraseña incorrectos.');
-  }
-  const user: AuthUser =
-    state.user ??
-    ({
-      id: String(Date.now()),
-      name: credentials.name || email.split('@')[0] || 'Usuario',
-      email: credentials.email,
-      createdAt: new Date().toISOString(),
-    } as AuthUser);
+  const user = await apiRequest<AuthUser>('/me', {
+    method: 'GET',
+    token: state.token,
+  });
   await saveAuthState({ ...state, user });
   return user;
 }
 
-export async function signUp(name: string, email: string, password: string) {
+export async function updateProfile(payload: { name?: string }) {
   const state = await loadAuthState();
-  const credentials: AuthCredentials = {
-    name: name.trim(),
-    email: email.trim(),
-    password,
-  };
-  const user: AuthUser = {
-    id: String(Date.now()),
-    name: name.trim(),
-    email: email.trim(),
-    createdAt: new Date().toISOString(),
-  };
-  await saveAuthState({
-    ...state,
-    user,
-    credentials,
-    resetRequestedAt: null,
+  if (!state.token) {
+    throw new Error('No hay sesión activa.');
+  }
+  const user = await apiRequest<AuthUser>('/me', {
+    method: 'PUT',
+    token: state.token,
+    body: payload,
   });
+  await saveAuthState({ ...state, user });
   return user;
 }
 
 export async function signInWithBiometrics() {
   const state = await loadAuthState();
-  if (!state.credentials) {
-    throw new Error('No hay credenciales guardadas.');
+  if (!state.token) {
+    throw new Error('No hay sesión guardada para usar biometría.');
   }
-  if (!state.user) {
-    const user: AuthUser = {
-      id: String(Date.now()),
-      name: state.credentials.name || state.credentials.email.split('@')[0] || 'Usuario',
-      email: state.credentials.email,
-      createdAt: new Date().toISOString(),
-    };
-    await saveAuthState({ ...state, user });
-    return user;
-  }
-  return state.user;
+  return fetchProfile();
 }
 
 export async function setBiometricsEnabled(enabled: boolean) {
@@ -137,18 +130,11 @@ export async function setBiometricsEnabled(enabled: boolean) {
 }
 
 export async function requestPasswordReset(email: string) {
-  const state = await loadAuthState();
-  const normalized = email.trim();
-  const exists = state.credentials?.email === normalized;
-  if (exists) {
-    await saveAuthState({ ...state, resetRequestedAt: new Date().toISOString() });
-  }
-  return {
-    ok: exists,
-  };
+  // Placeholder: endpoint real se agrega en backend futuro.
+  return { ok: Boolean(email.trim()) };
 }
 
 export async function signOut() {
   const state = await loadAuthState();
-  await saveAuthState({ ...state, user: null });
+  await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
 }

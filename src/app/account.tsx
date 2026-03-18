@@ -1,6 +1,6 @@
+import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { setBiometricsEnabled, signOut } from '@/lib/auth';
+import { setBiometricsEnabled, signOut, updateProfile } from '@/lib/auth';
 import { canUseBiometrics } from '@/lib/biometrics';
 
 export default function AccountScreen() {
@@ -18,6 +18,9 @@ export default function AccountScreen() {
   const { user, loading, biometricsEnabled } = useAuth();
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsToggle, setBiometricsToggle] = useState(biometricsEnabled);
+  const [isEditing, setIsEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     canUseBiometrics().then(setBiometricsAvailable);
@@ -27,11 +30,17 @@ export default function AccountScreen() {
     setBiometricsToggle(biometricsEnabled);
   }, [biometricsEnabled]);
 
+  useEffect(() => {
+    if (user) {
+      setNameDraft(user.name);
+    }
+  }, [user]);
+
   const handleSignOut = () => {
-    Alert.alert('Cerrar sesi√≥n', '¬øQuer√©s cerrar sesi√≥n en Instant?', [
+    Alert.alert('Cerrar sesiÛn', 'øQuerÈs cerrar sesiÛn en Instant?', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Cerrar sesi√≥n',
+        text: 'Cerrar sesiÛn',
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -45,19 +54,19 @@ export default function AccountScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Cuenta</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Guard√° tu informaci√≥n y preparate para respaldo y sincronizaci√≥n.
+          Guard· tu informaciÛn y preparate para respaldo y sincronizaciÛn.
         </ThemedText>
       </View>
 
       <Card variant="soft" style={styles.statusCard}>
         <View style={styles.statusHeader}>
-          <SectionHeader title="Estado de sesi√≥n" />
-          <Pill label={user ? 'Activa' : 'Sin sesi√≥n'} tone={user ? 'accent' : 'default'} />
+          <SectionHeader title="Estado de sesiÛn" />
+          <Pill label={user ? 'Activa' : 'Sin sesiÛn'} tone={user ? 'accent' : 'default'} />
         </View>
 
         {loading ? (
           <ThemedText type="small" themeColor="textSecondary">
-            Revisando tu sesi√≥n...
+            Revisando tu sesiÛn...
           </ThemedText>
         ) : user ? (
           <View style={styles.profileRow}>
@@ -65,7 +74,20 @@ export default function AccountScreen() {
               <ThemedText type="smallBold">{user.name.slice(0, 2).toUpperCase()}</ThemedText>
             </View>
             <View style={styles.profileInfo}>
-              <ThemedText type="smallBold">{user.name}</ThemedText>
+              {isEditing ? (
+                <TextInput
+                  placeholder="Nombre"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.input,
+                    { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                  ]}
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                />
+              ) : (
+                <ThemedText type="smallBold">{user.name}</ThemedText>
+              )}
               <ThemedText type="small" themeColor="textSecondary">
                 {user.email}
               </ThemedText>
@@ -73,9 +95,68 @@ export default function AccountScreen() {
           </View>
         ) : (
           <ThemedText type="small" themeColor="textSecondary">
-            No hay una sesi√≥n iniciada. Cre√° una cuenta para respaldar tus datos.
+            No hay una sesiÛn iniciada. Cre· una cuenta para respaldar tus datos.
           </ThemedText>
         )}
+
+        {user ? (
+          <View style={styles.profileActions}>
+            {isEditing ? (
+              <Pressable
+                onPress={async () => {
+                  setSaveError('');
+                  try {
+                    await updateProfile({ name: nameDraft.trim() || user.name });
+                    setIsEditing(false);
+                  } catch (err) {
+                    setSaveError(err instanceof Error ? err.message : 'No pudimos guardar los cambios.');
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  { backgroundColor: theme.brand },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+                  Guardar cambios
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setIsEditing(true)}
+                style={({ pressed }) => [
+                  styles.outlineButton,
+                  { borderColor: theme.border },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Editar perfil
+                </ThemedText>
+              </Pressable>
+            )}
+            {isEditing ? (
+              <Pressable
+                onPress={() => {
+                  setIsEditing(false);
+                  setNameDraft(user.name);
+                }}
+                style={({ pressed }) => [
+                  styles.outlineButton,
+                  { borderColor: theme.border },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Cancelar
+                </ThemedText>
+              </Pressable>
+            ) : null}
+            {saveError ? (
+              <ThemedText type="small" style={{ color: theme.accent }}>
+                {saveError}
+              </ThemedText>
+            ) : null}
+          </View>
+        ) : null}
 
         {!loading && !user ? (
           <View style={styles.actions}>
@@ -87,7 +168,7 @@ export default function AccountScreen() {
                 pressed && styles.pressed,
               ]}>
               <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-                Iniciar sesi√≥n
+                Iniciar sesiÛn
               </ThemedText>
             </Pressable>
             <Pressable
@@ -106,14 +187,14 @@ export default function AccountScreen() {
       </Card>
 
       <Card variant="soft" style={styles.securityCard}>
-        <SectionHeader title="Acceso r√°pido" />
+        <SectionHeader title="Acceso r·pido" />
         <View style={styles.securityRow}>
           <View style={styles.securityInfo}>
             <ThemedText type="smallBold">Ingresar con huella</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {biometricsAvailable
-                ? 'Pod√©s usar biometr√≠a en dispositivos compatibles.'
-                : 'No hay biometr√≠a disponible en este dispositivo.'}
+                ? 'PodÈs usar biometrÌa en dispositivos compatibles.'
+                : 'No hay biometrÌa disponible en este dispositivo.'}
             </ThemedText>
           </View>
           <Switch
@@ -121,8 +202,8 @@ export default function AccountScreen() {
             onValueChange={async (value) => {
               if (!biometricsAvailable) {
                 Alert.alert(
-                  'Biometr√≠a no disponible',
-                  'Tu dispositivo no tiene biometr√≠a configurada.'
+                  'BiometrÌa no disponible',
+                  'Tu dispositivo no tiene biometrÌa configurada.'
                 );
                 return;
               }
@@ -136,18 +217,18 @@ export default function AccountScreen() {
       </Card>
 
       <Card variant="soft" style={styles.syncCard}>
-        <SectionHeader title="Respaldo y sincronizaci√≥n" />
+        <SectionHeader title="Respaldo y sincronizaciÛn" />
         <ThemedText type="small" themeColor="textSecondary">
-          Estamos preparando el respaldo autom√°tico para tus movimientos, metas y calendario.
+          Estamos preparando el respaldo autom·tico para tus movimientos, metas y calendario.
         </ThemedText>
         <View style={styles.syncRow}>
           <View>
             <ThemedText type="smallBold">Instant Cloud</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Pr√≥ximamente disponible
+              PrÛximamente disponible
             </ThemedText>
           </View>
-          <Pill label="Pr√≥ximamente" tone="accent" />
+          <Pill label="PrÛximamente" tone="accent" />
         </View>
       </Card>
 
@@ -160,7 +241,7 @@ export default function AccountScreen() {
             pressed && styles.pressed,
           ]}>
           <ThemedText type="smallBold" themeColor="textSecondary">
-            Cerrar sesi√≥n
+            Cerrar sesiÛn
           </ThemedText>
         </Pressable>
       ) : null}
@@ -196,9 +277,21 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     gap: 2,
+    flex: 1,
+  },
+  profileActions: {
+    gap: Spacing.two,
   },
   actions: {
     gap: Spacing.two,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    fontSize: 14,
+    fontWeight: '600',
   },
   primaryButton: {
     paddingVertical: Spacing.three,
@@ -241,4 +334,3 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
-
