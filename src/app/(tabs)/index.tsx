@@ -13,25 +13,25 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { StatRow } from '@/components/ui/stat-row';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { quickActions } from '@/constants/mock-data';
+import { Spacing } from '@/constants/theme';
+import { useAppSettings } from '@/hooks/use-app-settings';
+import { useFinanceSettings } from '@/hooks/use-finance-settings';
+import { useTheme } from '@/hooks/use-theme';
+import { useTransactions } from '@/hooks/use-transactions';
+import { DueDate, getDueDates, getInstallments, getRecurringPayments, Installment, RecurringPayment } from '@/lib/calendar';
 import {
   calculateAvailable,
   calculateTotals,
   filterByCurrency,
-  filterByWeek,
   filterByMonth,
+  filterByWeek,
   formatCurrency,
   formatShortDate,
-  getWeeklyPlanAmount,
   getTransactionCurrency,
+  getWeeklyPlanAmount,
   isSavingsCategory,
 } from '@/lib/finance';
-import { useTransactions } from '@/hooks/use-transactions';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
-import { DueDate, getDueDates, getInstallments, getRecurringPayments, Installment, RecurringPayment } from '@/lib/calendar';
-import { useAppSettings } from '@/hooks/use-app-settings';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -570,3 +570,4 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 });
+

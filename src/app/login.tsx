@@ -1,20 +1,30 @@
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { signIn } from '@/lib/auth';
+import { signIn, signInWithBiometrics } from '@/lib/auth';
+import { authenticateWithBiometrics, canUseBiometrics } from '@/lib/biometrics';
 
 export default function LoginScreen() {
   const theme = useTheme();
+  const { biometricsEnabled } = useAuth();
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    canUseBiometrics().then(setBiometricsAvailable);
+  }, []);
 
   const handleSubmit = async () => {
     const trimmed = email.trim();
@@ -22,8 +32,35 @@ export default function LoginScreen() {
       setError('Ingresá un email válido.');
       return;
     }
-    await signIn(trimmed, name.trim());
-    router.replace('/account');
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    try {
+      await signIn(trimmed, password);
+      router.replace('/account');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos iniciar sesión.');
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setError('');
+    const result = await authenticateWithBiometrics();
+    if (!result.success) {
+      setError('No se pudo validar la biometría.');
+      return;
+    }
+    try {
+      await signInWithBiometrics();
+      router.replace('/account');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No hay una cuenta guardada para usar biometría.'
+      );
+    }
   };
 
   return (
@@ -67,16 +104,27 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <TextInput
-          placeholder="Nombre (opcional)"
-          placeholderTextColor={theme.textSecondary}
-          style={[
-            styles.input,
-            { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-          ]}
-          value={name}
-          onChangeText={setName}
-        />
+        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
+        >
+          <TextInput
+            placeholder="Contraseña"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.inputInner, { color: theme.text }]}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <Pressable onPress={() => setShowPassword((prev) => !prev)} style={styles.eyeButton} hitSlop={8}>
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+        <Pressable
+          onPress={() => router.push('/reset-password')}
+          style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            Olvidé mi contraseña
+          </ThemedText>
+        </Pressable>
         {error ? (
           <ThemedText type="small" style={{ color: theme.accent }}>
             {error}
@@ -93,6 +141,19 @@ export default function LoginScreen() {
             Iniciar sesión
           </ThemedText>
         </Pressable>
+        {biometricsAvailable && biometricsEnabled ? (
+          <Pressable
+            onPress={handleBiometricLogin}
+            style={({ pressed }) => [
+              styles.outlineButton,
+              { borderColor: theme.border },
+              pressed && styles.pressed,
+            ]}>
+            <ThemedText type="smallBold" themeColor="textSecondary">
+              Ingresar con huella
+            </ThemedText>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => router.push('/signup')}
           style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}>
@@ -137,11 +198,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: Spacing.three,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  eyeButton: {
+    paddingLeft: Spacing.one,
+  },
   primaryButton: {
     marginTop: Spacing.two,
     paddingVertical: Spacing.three,
     borderRadius: 16,
     alignItems: 'center',
+  },
+  outlineButton: {
+    marginTop: Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
   },
   primaryText: {
     fontSize: 15,

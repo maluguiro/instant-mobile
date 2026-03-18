@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -14,6 +15,10 @@ export default function SignupScreen() {
   const theme = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
@@ -27,7 +32,15 @@ export default function SignupScreen() {
       setError('Ingresá un email válido.');
       return;
     }
-    await signUp(trimmedName, trimmedEmail);
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+    await signUp(trimmedName, trimmedEmail, password);
     router.replace('/account');
   };
 
@@ -82,6 +95,32 @@ export default function SignupScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
         />
+        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+          <TextInput
+            placeholder="Contraseña"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.inputInner, { color: theme.text }]}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <Pressable onPress={() => setShowPassword((prev) => !prev)} style={styles.eyeButton} hitSlop={8}>
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+          <TextInput
+            placeholder="Confirmar contraseña"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.inputInner, { color: theme.text }]}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!showConfirm}
+          />
+          <Pressable onPress={() => setShowConfirm((prev) => !prev)} style={styles.eyeButton} hitSlop={8}>
+            <Feather name={showConfirm ? 'eye-off' : 'eye'} size={18} color={theme.textSecondary} />
+          </Pressable>
+        </View>
         {error ? (
           <ThemedText type="small" style={{ color: theme.accent }}>
             {error}
@@ -141,6 +180,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 16,
     fontWeight: '600',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: Spacing.three,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  eyeButton: {
+    paddingLeft: Spacing.one,
   },
   primaryButton: {
     marginTop: Spacing.two,

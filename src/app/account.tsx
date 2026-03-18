@@ -1,5 +1,6 @@
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -9,11 +10,22 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { signOut } from '@/lib/auth';
+import { setBiometricsEnabled, signOut } from '@/lib/auth';
+import { canUseBiometrics } from '@/lib/biometrics';
 
 export default function AccountScreen() {
   const theme = useTheme();
-  const { user, loading } = useAuth();
+  const { user, loading, biometricsEnabled } = useAuth();
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsToggle, setBiometricsToggle] = useState(biometricsEnabled);
+
+  useEffect(() => {
+    canUseBiometrics().then(setBiometricsAvailable);
+  }, []);
+
+  useEffect(() => {
+    setBiometricsToggle(biometricsEnabled);
+  }, [biometricsEnabled]);
 
   const handleSignOut = () => {
     Alert.alert('Cerrar sesión', '¿Querés cerrar sesión en Instant?', [
@@ -91,6 +103,36 @@ export default function AccountScreen() {
             </Pressable>
           </View>
         ) : null}
+      </Card>
+
+      <Card variant="soft" style={styles.securityCard}>
+        <SectionHeader title="Acceso rápido" />
+        <View style={styles.securityRow}>
+          <View style={styles.securityInfo}>
+            <ThemedText type="smallBold">Ingresar con huella</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {biometricsAvailable
+                ? 'Podés usar biometría en dispositivos compatibles.'
+                : 'No hay biometría disponible en este dispositivo.'}
+            </ThemedText>
+          </View>
+          <Switch
+            value={biometricsToggle}
+            onValueChange={async (value) => {
+              if (!biometricsAvailable) {
+                Alert.alert(
+                  'Biometría no disponible',
+                  'Tu dispositivo no tiene biometría configurada.'
+                );
+                return;
+              }
+              setBiometricsToggle(value);
+              await setBiometricsEnabled(value);
+            }}
+            trackColor={{ false: theme.border, true: theme.brandSoft }}
+            thumbColor={biometricsToggle ? theme.brand : theme.textSecondary}
+          />
+        </View>
       </Card>
 
       <Card variant="soft" style={styles.syncCard}>
@@ -175,6 +217,19 @@ const styles = StyleSheet.create({
   syncCard: {
     gap: Spacing.two,
   },
+  securityCard: {
+    gap: Spacing.two,
+  },
+  securityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  securityInfo: {
+    flex: 1,
+    gap: 2,
+  },
   syncRow: {
     marginTop: Spacing.one,
     flexDirection: 'row',
@@ -186,3 +241,4 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
