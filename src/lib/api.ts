@@ -1,4 +1,4 @@
-type ApiRequestOptions = {
+﻿type ApiRequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
   token?: string | null;
@@ -15,14 +15,19 @@ function buildUrl(path: string) {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions) {
-  const response = await fetch(buildUrl(path), {
-    method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      method: options.method ?? 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error('No pudimos conectar con el servidor. Revisá tu conexión.');
+  }
 
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json() : null;

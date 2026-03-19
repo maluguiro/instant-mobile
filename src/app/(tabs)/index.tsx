@@ -15,6 +15,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { quickActions } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { useAppSettings } from '@/hooks/use-app-settings';
+import { useAuth } from '@/hooks/use-auth';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { useTheme } from '@/hooks/use-theme';
 import { useTransactions } from '@/hooks/use-transactions';
@@ -35,6 +36,7 @@ import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { user } = useAuth();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
   const { settings: appSettings } = useAppSettings();
@@ -187,7 +189,7 @@ export default function HomeScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <ThemedText type="subtitle">Hola, Malena</ThemedText>
+          <ThemedText type="subtitle">Hola, {user?.name ?? 'bienvenida'}</ThemedText>
           <ThemeToggle />
         </View>
         <ThemedText themeColor="textSecondary">
@@ -570,4 +572,3 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 });
-

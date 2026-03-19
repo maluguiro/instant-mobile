@@ -5,6 +5,7 @@ import cors from 'cors';
 import { authRouter } from './routes/auth';
 import { authMiddleware } from './middleware/auth';
 import { getProfile, updateProfile } from './routes/profile';
+import { transactionsRouter } from './routes/transactions';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/auth', authRouter);
 
 app.get('/me', authMiddleware, getProfile);
 app.put('/me', authMiddleware, updateProfile);
+app.use('/transactions', authMiddleware, transactionsRouter);
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {

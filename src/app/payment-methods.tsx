@@ -22,11 +22,21 @@ export default function PaymentMethodsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([getPaymentMethods(), getTransactions()]).then(([items, tx]) => {
-        const merged = Array.from(new Set([...items, ...defaultPaymentMethods]));
-        setMethods(merged);
-        setTransactions(tx);
-      });
+      let active = true;
+      Promise.all([getPaymentMethods(), getTransactions()])
+        .then(([items, tx]) => {
+          if (!active) return;
+          const merged = Array.from(new Set([...items, ...defaultPaymentMethods]));
+          setMethods(merged);
+          setTransactions(tx);
+        })
+        .catch(() => {
+          if (!active) return;
+          setTransactions([]);
+        });
+      return () => {
+        active = false;
+      };
     }, [])
   );
 

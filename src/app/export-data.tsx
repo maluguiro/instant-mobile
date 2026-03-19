@@ -105,10 +105,20 @@ export default function ExportDataScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([getTransactions(), getFinanceSettings()]).then(([items, config]) => {
-        setTransactions(items);
-        setSettings(config);
-      });
+      let active = true;
+      Promise.all([getTransactions(), getFinanceSettings()])
+        .then(([items, config]) => {
+          if (!active) return;
+          setTransactions(items);
+          setSettings(config);
+        })
+        .catch(() => {
+          if (!active) return;
+          setTransactions([]);
+        });
+      return () => {
+        active = false;
+      };
     }, [])
   );
 

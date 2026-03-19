@@ -21,10 +21,20 @@ export default function CategoriesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([getCategories(), getTransactions()]).then(([items, tx]) => {
-        setCategories(items);
-        setTransactions(tx);
-      });
+      let active = true;
+      Promise.all([getCategories(), getTransactions()])
+        .then(([items, tx]) => {
+          if (!active) return;
+          setCategories(items);
+          setTransactions(tx);
+        })
+        .catch(() => {
+          if (!active) return;
+          setTransactions([]);
+        });
+      return () => {
+        active = false;
+      };
     }, [])
   );
 

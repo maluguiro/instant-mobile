@@ -9,14 +9,23 @@ export function useTransactions() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const items = await getTransactions();
-    setTransactions(items);
-    setLoading(false);
+    try {
+      const items = await getTransactions();
+      setTransactions(items);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const add = useCallback(async (item: Transaction) => {
-    const items = await addTransaction(item);
-    setTransactions(items);
+    try {
+      const items = await addTransaction(item);
+      setTransactions(items);
+    } catch {
+      return;
+    }
   }, []);
 
   return {

@@ -1,6 +1,6 @@
-import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -20,7 +20,13 @@ export default function AccountScreen() {
   const [biometricsToggle, setBiometricsToggle] = useState(biometricsEnabled);
   const [isEditing, setIsEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [emailDraft, setEmailDraft] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     canUseBiometrics().then(setBiometricsAvailable);
@@ -33,14 +39,15 @@ export default function AccountScreen() {
   useEffect(() => {
     if (user) {
       setNameDraft(user.name);
+      setEmailDraft(user.email);
     }
   }, [user]);
 
   const handleSignOut = () => {
-    Alert.alert('Cerrar sesiÛn', 'øQuerÈs cerrar sesiÛn en Instant?', [
+    Alert.alert('Cerrar sesi√≥n', '¬øQuer√©s cerrar sesi√≥n en Instant?', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Cerrar sesiÛn',
+        text: 'Cerrar sesi√≥n',
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -54,19 +61,19 @@ export default function AccountScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Cuenta</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Guard· tu informaciÛn y preparate para respaldo y sincronizaciÛn.
+          Guard√° tu informaci√≥n y preparate para respaldo y sincronizaci√≥n.
         </ThemedText>
       </View>
 
       <Card variant="soft" style={styles.statusCard}>
         <View style={styles.statusHeader}>
-          <SectionHeader title="Estado de sesiÛn" />
-          <Pill label={user ? 'Activa' : 'Sin sesiÛn'} tone={user ? 'accent' : 'default'} />
+          <SectionHeader title="Estado de sesi√≥n" />
+          <Pill label={user ? 'Activa' : 'Sin sesi√≥n'} tone={user ? 'accent' : 'default'} />
         </View>
 
         {loading ? (
           <ThemedText type="small" themeColor="textSecondary">
-            Revisando tu sesiÛn...
+            Revisando tu sesi√≥n...
           </ThemedText>
         ) : user ? (
           <View style={styles.profileRow}>
@@ -75,27 +82,43 @@ export default function AccountScreen() {
             </View>
             <View style={styles.profileInfo}>
               {isEditing ? (
-                <TextInput
-                  placeholder="Nombre"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[
-                    styles.input,
-                    { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                  ]}
-                  value={nameDraft}
-                  onChangeText={setNameDraft}
-                />
+                <View style={styles.profileInputs}>
+                  <TextInput
+                    placeholder="Nombre"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[
+                      styles.input,
+                      { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    ]}
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                  />
+                  <TextInput
+                    placeholder="Email"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[
+                      styles.input,
+                      { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    ]}
+                    value={emailDraft}
+                    onChangeText={setEmailDraft}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
               ) : (
-                <ThemedText type="smallBold">{user.name}</ThemedText>
+                <>
+                  <ThemedText type="smallBold">{user.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {user.email}
+                  </ThemedText>
+                </>
               )}
-              <ThemedText type="small" themeColor="textSecondary">
-                {user.email}
-              </ThemedText>
             </View>
           </View>
         ) : (
           <ThemedText type="small" themeColor="textSecondary">
-            No hay una sesiÛn iniciada. Cre· una cuenta para respaldar tus datos.
+            No hay una sesi√≥n iniciada. Cre√° una cuenta para respaldar tus datos.
           </ThemedText>
         )}
 
@@ -106,7 +129,10 @@ export default function AccountScreen() {
                 onPress={async () => {
                   setSaveError('');
                   try {
-                    await updateProfile({ name: nameDraft.trim() || user.name });
+                    await updateProfile({
+                      name: nameDraft.trim() || user.name,
+                      email: emailDraft.trim() || user.email,
+                    });
                     setIsEditing(false);
                   } catch (err) {
                     setSaveError(err instanceof Error ? err.message : 'No pudimos guardar los cambios.');
@@ -139,6 +165,7 @@ export default function AccountScreen() {
                 onPress={() => {
                   setIsEditing(false);
                   setNameDraft(user.name);
+                  setEmailDraft(user.email);
                 }}
                 style={({ pressed }) => [
                   styles.outlineButton,
@@ -168,7 +195,7 @@ export default function AccountScreen() {
                 pressed && styles.pressed,
               ]}>
               <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-                Iniciar sesiÛn
+                Iniciar sesi√≥n
               </ThemedText>
             </Pressable>
             <Pressable
@@ -186,15 +213,98 @@ export default function AccountScreen() {
         ) : null}
       </Card>
 
+      {user ? (
+        <Card variant="soft" style={styles.securityCard}>
+          <SectionHeader title="Seguridad" />
+          <TextInput
+            placeholder="Contrase√±a actual"
+            placeholderTextColor={theme.textSecondary}
+            style={[
+              styles.input,
+              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+            ]}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+          />
+          <TextInput
+            placeholder="Nueva Contrase√±a"
+            placeholderTextColor={theme.textSecondary}
+            style={[
+              styles.input,
+              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+            ]}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+          />
+          <TextInput
+            placeholder="Confirmar nueva contrase√±a"
+            placeholderTextColor={theme.textSecondary}
+            style={[
+              styles.input,
+              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+            ]}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
+          {passwordError ? (
+            <ThemedText type="small" style={{ color: theme.accent }}>
+              {passwordError}
+            </ThemedText>
+          ) : null}
+          {passwordMessage ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {passwordMessage}
+            </ThemedText>
+          ) : null}
+          <Pressable
+            onPress={async () => {
+              setPasswordError('');
+              setPasswordMessage('');
+              if (newPassword.length < 6) {
+                setPasswordError('La nueva Contrase√±a debe tener al menos 6 caracteres.');
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                setPasswordError('Las Contrase√±a no coinciden.');
+                return;
+              }
+              try {
+                await updateProfile({
+                  currentPassword,
+                  newPassword,
+                });
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setPasswordMessage('Contrase√±a actualizada.');
+              } catch (err) {
+                setPasswordError(err instanceof Error ? err.message : 'No pudimos actualizar la Contrase√±a.');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.brand },
+              pressed && styles.pressed,
+            ]}>
+            <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+              Cambiar Contrase√±a
+            </ThemedText>
+          </Pressable>
+        </Card>
+      ) : null}
+
       <Card variant="soft" style={styles.securityCard}>
-        <SectionHeader title="Acceso r·pido" />
+        <SectionHeader title="Acceso r√°pido" />
         <View style={styles.securityRow}>
           <View style={styles.securityInfo}>
             <ThemedText type="smallBold">Ingresar con huella</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {biometricsAvailable
-                ? 'PodÈs usar biometrÌa en dispositivos compatibles.'
-                : 'No hay biometrÌa disponible en este dispositivo.'}
+                ? 'Pod√©s usar biometr√≠a en dispositivos compatibles.'
+                : 'No hay biometr√≠a disponible en este dispositivo.'}
             </ThemedText>
           </View>
           <Switch
@@ -202,8 +312,8 @@ export default function AccountScreen() {
             onValueChange={async (value) => {
               if (!biometricsAvailable) {
                 Alert.alert(
-                  'BiometrÌa no disponible',
-                  'Tu dispositivo no tiene biometrÌa configurada.'
+                  'Biometr√≠a no disponible',
+                  'Tu dispositivo no tiene biometr√≠a configurada.'
                 );
                 return;
               }
@@ -217,18 +327,18 @@ export default function AccountScreen() {
       </Card>
 
       <Card variant="soft" style={styles.syncCard}>
-        <SectionHeader title="Respaldo y sincronizaciÛn" />
+        <SectionHeader title="Respaldo y sincronizaci√≥n" />
         <ThemedText type="small" themeColor="textSecondary">
-          Estamos preparando el respaldo autom·tico para tus movimientos, metas y calendario.
+          Estamos preparando el respaldo autom√°tico para tus movimientos, metas y calendario.
         </ThemedText>
         <View style={styles.syncRow}>
           <View>
             <ThemedText type="smallBold">Instant Cloud</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              PrÛximamente disponible
+              Pr√≥ximamente disponible
             </ThemedText>
           </View>
-          <Pill label="PrÛximamente" tone="accent" />
+          <Pill label="Pr√≥ximamente" tone="accent" />
         </View>
       </Card>
 
@@ -241,7 +351,7 @@ export default function AccountScreen() {
             pressed && styles.pressed,
           ]}>
           <ThemedText type="smallBold" themeColor="textSecondary">
-            Cerrar sesiÛn
+            Cerrar sesi√≥n
           </ThemedText>
         </Pressable>
       ) : null}
@@ -278,6 +388,9 @@ const styles = StyleSheet.create({
   profileInfo: {
     gap: 2,
     flex: 1,
+  },
+  profileInputs: {
+    gap: Spacing.one,
   },
   profileActions: {
     gap: Spacing.two,

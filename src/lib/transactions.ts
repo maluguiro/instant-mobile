@@ -1,38 +1,125 @@
+import { apiRequest } from '@/lib/api';
+import { getCachedAuthState, loadAuthState } from '@/lib/auth';
+import { getCachedAppSettings } from '@/lib/app-settings';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { Transaction } from '@/lib/types';
-import { getCachedAppSettings } from '@/lib/app-settings';
 
-export async function getTransactions(): Promise<Transaction[]> {
-  const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
-  const normalized = items.map((item) => ({
-    currency: item.currency ?? defaultCurrency,
-    ...item,
-  }));
-  return normalized.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+async function getAuthToken() {
+  const cached = getCachedAuthState();
+  if (cached.token) return cached.token;
+  const loaded = await loadAuthState();
+  return loaded.token;
 }
 
-export async function saveTransactions(items: Transaction[]): Promise<void> {
-  await setItem(STORAGE_KEYS.transactions, items);
+function normalizeTransactions(items: Transaction[]) {
+  const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
+  return items
+    .map((item) => ({
+      currency: item.currency ?? defaultCurrency,
+      ...item,
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getTransactions(): Promise<Transaction[]> {
+  const token = await getAuthToken();
+  if (!token) {
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    return normalizeTransactions(items);
+  }
+
+  try {
+    const items = await apiRequest<Transaction[]>('/transactions', {
+      method: 'GET',
+      token,
+    });
+
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, items);
+    return normalizeTransactions(items);
+  } catch {
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    return normalizeTransactions(items);
+  }
 }
 
 export async function addTransaction(item: Transaction): Promise<Transaction[]> {
-  const items = await getTransactions();
-  const next = [item, ...items];
-  await saveTransactions(next);
-  return next;
+  const token = await getAuthToken();
+  if (!token) {
+    const items = await getTransactions();
+    const next = [item, ...items];
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    return normalizeTransactions(next);
+  }
+
+  try {
+    const created = await apiRequest<Transaction>('/transactions', {
+      method: 'POST',
+      token,
+      body: {
+        type: item.type,
+        amount: item.amount,
+        currency: item.currency,
+        category: item.category,
+        date: item.date,
+        method: item.method,
+      },
+    });
+
+    const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = [created, ...cached];
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    return normalizeTransactions(next);
+  } catch {
+    const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = [item, ...cached];
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    return normalizeTransactions(next);
+  }
+}
+
+export async function updateTransaction(id: string, payload: Partial<Transaction>): Promise<Transaction | null> {
+  const token = await getAuthToken();
+  if (!token) {
+    return null;
+  }
+
+  try {
+    return await apiRequest<Transaction>(`/transactions/${id}`, {
+      method: 'PUT',
+      token,
+      body: payload,
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  const token = await getAuthToken();
+  if (!token) {
+    return;
+  }
+
+  try {
+    await apiRequest(`/transactions/${id}`, {
+      method: 'DELETE',
+      token,
+    });
+  } catch {
+    return;
+  }
 }
 
 export async function updateTransactionCategory(previous: string, nextName: string): Promise<Transaction[]> {
   const items = await getTransactions();
   const next = items.map((tx) => (tx.category === previous ? { ...tx, category: nextName } : tx));
-  await saveTransactions(next);
-  return next;
+  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  return normalizeTransactions(next);
 }
 
 export async function updateTransactionMethod(previous: string, nextName: string): Promise<Transaction[]> {
   const items = await getTransactions();
   const next = items.map((tx) => (tx.method === previous ? { ...tx, method: nextName } : tx));
-  await saveTransactions(next);
-  return next;
+  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  return normalizeTransactions(next);
 }

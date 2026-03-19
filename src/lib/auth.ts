@@ -102,7 +102,12 @@ export async function fetchProfile() {
   return user;
 }
 
-export async function updateProfile(payload: { name?: string }) {
+export async function updateProfile(payload: {
+  name?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}) {
   const state = await loadAuthState();
   if (!state.token) {
     throw new Error('No hay sesión activa.');
@@ -137,4 +142,5 @@ export async function requestPasswordReset(email: string) {
 export async function signOut() {
   const state = await loadAuthState();
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
+  await setItem(STORAGE_KEYS.transactions, []);
 }
