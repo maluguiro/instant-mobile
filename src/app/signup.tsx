@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+﻿import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -40,8 +40,12 @@ export default function SignupScreen() {
       setError('Las contraseñas no coinciden.');
       return;
     }
-    await signUp(trimmedName, trimmedEmail, password);
-    router.replace('/account');
+    try {
+      await signUp(trimmedName, trimmedEmail, password);
+      router.replace('/account');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos crear tu cuenta.');
+    }
   };
 
   return (
@@ -95,7 +99,8 @@ export default function SignupScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
+        >
           <TextInput
             placeholder="Contraseña"
             placeholderTextColor={theme.textSecondary}
@@ -108,7 +113,8 @@ export default function SignupScreen() {
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={theme.textSecondary} />
           </Pressable>
         </View>
-        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
+        >
           <TextInput
             placeholder="Confirmar contraseña"
             placeholderTextColor={theme.textSecondary}
@@ -133,7 +139,8 @@ export default function SignupScreen() {
             { backgroundColor: theme.brand },
             pressed && styles.pressed,
           ]}>
-          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}
+          >
             Crear cuenta
           </ThemedText>
         </Pressable>

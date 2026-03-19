@@ -1,15 +1,12 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+﻿import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
-import { Pill } from '@/components/ui/pill';
-import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { formatCurrency } from '@/lib/finance';
 
 export default function AuthWelcomeScreen() {
   const theme = useTheme();
@@ -22,46 +19,6 @@ export default function AuthWelcomeScreen() {
           Guardá tu información y seguí tus finanzas desde cualquier dispositivo.
         </ThemedText>
       </View>
-
-      <Card variant="soft" style={styles.previewCard}>
-        <View style={styles.previewHeader}>
-          <SectionHeader title="Vista rápida" />
-          <Pill label="Preview" tone="accent" />
-        </View>
-        <View style={styles.previewRow}>
-          <View style={[styles.previewTile, { backgroundColor: theme.cardAlt }]}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Disponible mensual
-            </ThemedText>
-            <ThemedText type="smallBold">{formatCurrency(1240000)}</ThemedText>
-            <ProgressBar value={0.64} />
-          </View>
-          <View style={[styles.previewTile, { backgroundColor: theme.cardAlt }]}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Ahorro reservado
-            </ThemedText>
-            <ThemedText type="smallBold">{formatCurrency(320000)}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              40% del objetivo
-            </ThemedText>
-          </View>
-        </View>
-        <View style={styles.previewFooter}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Próximos pagos
-          </ThemedText>
-          <View style={styles.previewList}>
-            <View style={styles.previewItem}>
-              <View style={[styles.dot, { backgroundColor: theme.accent }]} />
-              <ThemedText type="small">Netflix · 24/03</ThemedText>
-            </View>
-            <View style={styles.previewItem}>
-              <View style={[styles.dot, { backgroundColor: theme.warning }]} />
-              <ThemedText type="small">Tarjeta · 02/04</ThemedText>
-            </View>
-          </View>
-        </View>
-      </Card>
 
       <Card variant="soft" style={styles.card}>
         <SectionHeader title="Tu cuenta te permite" />
@@ -87,7 +44,8 @@ export default function AuthWelcomeScreen() {
               { backgroundColor: theme.brand },
               pressed && styles.pressed,
             ]}>
-            <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+            <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}
+            >
               Iniciar sesión
             </ThemedText>
           </Pressable>
@@ -112,43 +70,6 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
     marginTop: Spacing.two,
-  },
-  previewCard: {
-    gap: Spacing.three,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  previewTile: {
-    flex: 1,
-    minWidth: 150,
-    padding: Spacing.three,
-    borderRadius: 16,
-    gap: Spacing.one,
-  },
-  previewFooter: {
-    gap: Spacing.one,
-  },
-  previewList: {
-    gap: Spacing.one,
-  },
-  previewItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
   },
   card: {
     gap: Spacing.three,

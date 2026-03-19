@@ -20,6 +20,10 @@ export function useAuth() {
         fetchProfile()
           .then((fresh) => {
             if (!active) return;
+            if (!fresh) {
+              signOut().then(() => setUser(null));
+              return;
+            }
             setUser(fresh);
           })
           .catch(async () => {

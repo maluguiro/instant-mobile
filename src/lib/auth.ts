@@ -92,14 +92,18 @@ export async function signIn(email: string, password: string) {
 export async function fetchProfile() {
   const state = await loadAuthState();
   if (!state.token) {
-    throw new Error('No hay sesión activa.');
+    return null;
   }
-  const user = await apiRequest<AuthUser>('/me', {
-    method: 'GET',
-    token: state.token,
-  });
-  await saveAuthState({ ...state, user });
-  return user;
+  try {
+    const user = await apiRequest<AuthUser>('/me', {
+      method: 'GET',
+      token: state.token,
+    });
+    await saveAuthState({ ...state, user });
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateProfile(payload: {
@@ -126,7 +130,11 @@ export async function signInWithBiometrics() {
   if (!state.token) {
     throw new Error('No hay sesión guardada para usar biometría.');
   }
-  return fetchProfile();
+  const user = await fetchProfile();
+  if (!user) {
+    throw new Error('No pudimos validar la sesión guardada.');
+  }
+  return user;
 }
 
 export async function setBiometricsEnabled(enabled: boolean) {
@@ -144,3 +152,4 @@ export async function signOut() {
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
   await setItem(STORAGE_KEYS.transactions, []);
 }
+
