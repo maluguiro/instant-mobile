@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   categories: 'instant:categories',
   appSettings: 'instant:app_settings',
   auth: 'instant:auth',
+  biometricToken: 'instant:biometric_token',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {
@@ -29,6 +30,14 @@ export async function getItem<T>(key: string, fallback: T): Promise<T> {
 export async function setItem<T>(key: string, value: T): Promise<void> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore for now
+  }
+}
+
+export async function removeItem(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(key);
   } catch {
     // ignore for now
   }

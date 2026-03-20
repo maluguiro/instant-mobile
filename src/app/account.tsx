@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
@@ -10,8 +10,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { setBiometricsEnabled, signOut, updateProfile } from '@/lib/auth';
-import { canUseBiometrics } from '@/lib/biometrics';
+import { lockSession, setBiometricsEnabled, signOut, updateProfile } from '@/lib/auth';
+import { authenticateWithBiometrics, canUseBiometrics } from '@/lib/biometrics';
 
 export default function AccountScreen() {
   const theme = useTheme();
@@ -317,6 +317,22 @@ export default function AccountScreen() {
                 );
                 return;
               }
+              if (value) {
+                const result = await authenticateWithBiometrics();
+                if (!result.success) {
+                  Alert.alert(
+                    'No se pudo activar',
+                    'No pudimos validar tu biometría. Intentá de nuevo.'
+                  );
+                  setBiometricsToggle(false);
+                  await setBiometricsEnabled(false);
+                  return;
+                }
+                Alert.alert(
+                  'Acceso rápido activado',
+                  'Ahora podés ingresar con huella además de tu contraseña.'
+                );
+              }
               setBiometricsToggle(value);
               await setBiometricsEnabled(value);
             }}
@@ -447,3 +463,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+
+
+

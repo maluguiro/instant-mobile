@@ -16,7 +16,7 @@ export function useAuth() {
       setUser(state.user);
       setBiometricsEnabled(state.biometricsEnabled ?? false);
       setLoading(false);
-      if (state.token) {
+      if (state.token && !state.biometricsEnabled) {
         fetchProfile()
           .then((fresh) => {
             if (!active) return;

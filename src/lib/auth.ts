@@ -1,4 +1,4 @@
-import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+﻿import { getItem, removeItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { apiRequest } from '@/lib/api';
 
 export type AuthUser = {
@@ -56,6 +56,13 @@ export async function saveAuthState(state: AuthState) {
   const normalized = normalizeState(state);
   cachedState = normalized;
   await setItem<AuthState>(STORAGE_KEYS.auth, normalized);
+  if (normalized.biometricsEnabled) {
+    if (normalized.token) {
+      await setItem<string>(STORAGE_KEYS.biometricToken, normalized.token);
+    }
+  } else {
+    await removeItem(STORAGE_KEYS.biometricToken);
+  }
   notify(normalized);
 }
 
@@ -89,16 +96,17 @@ export async function signIn(email: string, password: string) {
   return response.user;
 }
 
+async function fetchProfileWithToken(token: string) {
+  return apiRequest<AuthUser>('/me', { method: 'GET', token });
+}
+
 export async function fetchProfile() {
   const state = await loadAuthState();
   if (!state.token) {
     return null;
   }
   try {
-    const user = await apiRequest<AuthUser>('/me', {
-      method: 'GET',
-      token: state.token,
-    });
+    const user = await fetchProfileWithToken(state.token);
     await saveAuthState({ ...state, user });
     return user;
   } catch {
@@ -127,13 +135,15 @@ export async function updateProfile(payload: {
 
 export async function signInWithBiometrics() {
   const state = await loadAuthState();
-  if (!state.token) {
+  let token = state.token;
+  if (!token) {
+    token = await getItem<string | null>(STORAGE_KEYS.biometricToken, null);
+  }
+  if (!token) {
     throw new Error('No hay sesión guardada para usar biometría.');
   }
-  const user = await fetchProfile();
-  if (!user) {
-    throw new Error('No pudimos validar la sesión guardada.');
-  }
+  const user = await fetchProfileWithToken(token);
+  await saveAuthState({ token, user, biometricsEnabled: state.biometricsEnabled });
   return user;
 }
 
@@ -151,5 +161,10 @@ export async function signOut() {
   const state = await loadAuthState();
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
   await setItem(STORAGE_KEYS.transactions, []);
+}
+
+export async function lockSession() {
+  const state = await loadAuthState();
+  await saveAuthState({ token: state.token ?? null, user: null, biometricsEnabled: state.biometricsEnabled });
 }
 
