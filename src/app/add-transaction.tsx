@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+﻿import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -54,6 +54,7 @@ export default function AddTransactionScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
   const theme = useTheme();
   const { settings: appSettings } = useAppSettings();
   const [currency, setCurrency] = useState(appSettings.currency);
@@ -95,6 +96,13 @@ export default function AddTransactionScreen() {
     return type === 'income' ? INCOME_CATEGORIES : expenseCategories;
   }, [expenseCategories, type]);
 
+  useEffect(() => {
+    if (type === 'income' && selectedCategory === 'Ahorro') {
+      setSelectedCategory('');
+      setUseCustomCategory(false);
+    }
+  }, [type, selectedCategory]);
+
   const handleDateSelect = (option: DateOption) => {
     setDateOption(option);
     if (option === 'Hoy') {
@@ -131,6 +139,10 @@ export default function AddTransactionScreen() {
       setError('Seleccioná o escribí un método de pago.');
       return;
     }
+    if (type === 'income' && category === 'Ahorro') {
+      setError('Ahorro no es una categoría válida para ingresos.');
+      return;
+    }
 
     if (useCustomMethod && method) {
       const updated = await addPaymentMethod(method);
@@ -156,6 +168,7 @@ export default function AddTransactionScreen() {
       category,
       date: toISODate(selectedDate),
       method,
+      note: note.trim() ? note.trim() : undefined,
       createdAt: now,
     };
 
@@ -331,6 +344,17 @@ export default function AddTransactionScreen() {
             }}
           />
         ) : null}
+      </Card>
+
+      <Card>
+        <SectionHeader title="Nota (opcional)" />
+        <TextInput
+          placeholder="Agregá un detalle si lo necesitás"
+          placeholderTextColor={theme.textSecondary}
+          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          value={note}
+          onChangeText={setNote}
+        />
       </Card>
 
       {error ? (

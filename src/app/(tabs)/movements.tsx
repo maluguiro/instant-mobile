@@ -1,11 +1,12 @@
-
-import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useMemo, useState } from 'react';
+﻿import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
 import { SelectableOption } from '@/components/ui/selectable-option';
+import { CurrencySelect } from '@/components/ui/currency-select';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -23,12 +24,18 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getCategories } from '@/lib/categories';
+import { getPaymentMethods } from '@/lib/payment-methods';
+import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
+import { Transaction } from '@/lib/types';
 
 const PERIOD_FILTERS = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado'] as const;
 const TYPE_FILTERS = ['Todos', 'Entradas', 'Salidas'] as const;
 
 type PeriodFilter = (typeof PERIOD_FILTERS)[number];
 type TypeFilter = (typeof TYPE_FILTERS)[number];
+
+type EditType = 'income' | 'expense';
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') {
@@ -43,7 +50,7 @@ function getNativeDateTimePicker() {
 
 export default function MovementsScreen() {
   const theme = useTheme();
-  const { transactions, refresh } = useTransactions();
+  const { transactions, refresh, update, remove } = useTransactions();
   const { settings: appSettings } = useAppSettings();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
   const [search, setSearch] = useState('');
@@ -56,11 +63,33 @@ export default function MovementsScreen() {
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null);
   const [showPicker, setShowPicker] = useState(false);
 
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [editType, setEditType] = useState<EditType>('expense');
+  const [editAmount, setEditAmount] = useState('');
+  const [editCurrency, setEditCurrency] = useState(appSettings.currency);
+  const [editCategory, setEditCategory] = useState('');
+  const [editMethod, setEditMethod] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editDate, setEditDate] = useState<Date>(new Date());
+  const [editShowPicker, setEditShowPicker] = useState(false);
+  const [editCategories, setEditCategories] = useState<string[]>([]);
+  const [editMethods, setEditMethods] = useState<string[]>(defaultPaymentMethods);
+  const [editError, setEditError] = useState('');
+
   useFocusEffect(
     useCallback(() => {
       refresh();
     }, [refresh])
   );
+
+  useEffect(() => {
+    if (!editingTx) return;
+    getCategories().then(setEditCategories);
+    getPaymentMethods().then((stored) => {
+      const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+      setEditMethods(merged);
+    });
+  }, [editingTx]);
 
   const categoryOptions = useMemo(() => {
     const items = Array.from(new Set(transactions.map((tx) => tx.category).filter(Boolean)));
@@ -157,6 +186,71 @@ export default function MovementsScreen() {
     );
   };
 
+  const openEdit = (tx: Transaction) => {
+    setEditError('');
+    setEditingTx(tx);
+    setEditType(tx.type);
+    setEditAmount(String(tx.amount));
+    setEditCurrency(tx.currency || appSettings.currency);
+    setEditCategory(tx.category);
+    setEditMethod(tx.method);
+    setEditNote(tx.note ?? '');
+    setEditDate(new Date(tx.date + 'T00:00:00'));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTx) return;
+    const normalized = editAmount.replace(/[^0-9,.-]/g, '').replace(',', '.');
+    const value = Number(normalized);
+    if (!value || Number.isNaN(value) || value <= 0) {
+      setEditError('Ingresá un monto válido.');
+      return;
+    }
+    if (!editCategory.trim()) {
+      setEditError('Seleccioná una categoría.');
+      return;
+    }
+    if (!editMethod.trim()) {
+      setEditError('Seleccioná un método.');
+      return;
+    }
+    if (editType === 'income' && editCategory.trim() === 'Ahorro') {
+      setEditError('Ahorro no es una categoría válida para ingresos.');
+      return;
+    }
+
+    await update(editingTx.id, {
+      type: editType,
+      amount: value,
+      currency: editCurrency,
+      category: editCategory.trim(),
+      method: editMethod.trim(),
+      date: toISODate(editDate),
+      note: editNote.trim() ? editNote.trim() : undefined,
+    });
+    setEditingTx(null);
+  };
+
+  const handleDelete = async () => {
+    if (!editingTx) return;
+    Alert.alert('Eliminar movimiento', '¿Querés eliminar este movimiento?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          await remove(editingTx.id);
+          setEditingTx(null);
+        },
+      },
+    ]);
+  };
+
+  const editCategoryOptions = useMemo(() => {
+    const base = editCategories.length ? editCategories : ['Comida', 'Transporte', 'Hogar', 'Servicios', 'Ocio', 'Salud', 'Ahorro'];
+    return editType === 'income' ? base.filter((item) => item !== 'Ahorro') : base;
+  }, [editCategories, editType]);
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -239,6 +333,10 @@ export default function MovementsScreen() {
         </Pressable>
       </Card>
 
+      <ThemedText type="small" themeColor="textSecondary" style={styles.editHint}>
+        Tocá un movimiento para editarlo
+      </ThemedText>
+
       {filtered.length === 0 ? (
         <Card>
           <ThemedText type="smallBold">Sin movimientos para este filtro</ThemedText>
@@ -266,7 +364,10 @@ export default function MovementsScreen() {
                 {group.items.map((item) => {
                   const isIncome = item.type === 'income';
                   return (
-                    <View key={item.id} style={styles.itemRow}>
+                    <Pressable
+                      key={item.id}
+                      onPress={() => openEdit(item)}
+                      style={({ pressed }) => [styles.itemRow, pressed && styles.pressed]}>
                       <View style={styles.itemInfo}>
                         <ThemedText type="smallBold">{item.category}</ThemedText>
                         <ThemedText type="small" themeColor="textSecondary">
@@ -288,7 +389,8 @@ export default function MovementsScreen() {
                           {isIncome ? 'Entrada' : 'Salida'}
                         </ThemedText>
                       </View>
-                    </View>
+                      <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                    </Pressable>
                   );
                 })}
               </View>
@@ -296,6 +398,208 @@ export default function MovementsScreen() {
           );
         })
       )}
+
+      <Modal
+        visible={!!editingTx}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingTx(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <ThemedText type="subtitle">Editar movimiento</ThemedText>
+                <Pressable onPress={() => setEditingTx(null)} hitSlop={8}>
+                  <Feather name="x" size={18} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Ajustá los datos y guardá los cambios.
+              </ThemedText>
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Tipo
+              </ThemedText>
+              <View style={styles.filters}>
+                <SelectableOption
+                  label="Ingreso"
+                  selected={editType === 'income'}
+                  onPress={() => setEditType('income')}
+                />
+                <SelectableOption
+                  label="Egreso"
+                  selected={editType === 'expense'}
+                  onPress={() => setEditType('expense')}
+                />
+              </View>
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Monto
+              </ThemedText>
+              <View style={styles.amountRow}>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.amountInput, { color: theme.text, borderColor: theme.border }]}
+                  keyboardType="numeric"
+                  value={editAmount}
+                  onChangeText={setEditAmount}
+                />
+                <CurrencySelect
+                  value={editCurrency}
+                  onChange={setEditCurrency}
+                  label=""
+                  compact
+                  style={styles.currencyPicker}
+                />
+              </View>
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Categoría
+              </ThemedText>
+              <View style={styles.filters}>
+                {editCategoryOptions.map((item) => (
+                  <SelectableOption
+                    key={item}
+                    label={item}
+                    selected={editCategory === item}
+                    onPress={() => setEditCategory(item)}
+                  />
+                ))}
+              </View>
+              <TextInput
+                placeholder="Otra categoría"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={editCategory}
+                onChangeText={setEditCategory}
+              />
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Método
+              </ThemedText>
+              <View style={styles.filters}>
+                {editMethods.map((item) => (
+                  <SelectableOption
+                    key={item}
+                    label={item}
+                    selected={editMethod === item}
+                    onPress={() => setEditMethod(item)}
+                  />
+                ))}
+              </View>
+              <TextInput
+                placeholder="Otro método"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={editMethod}
+                onChangeText={setEditMethod}
+              />
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Fecha
+              </ThemedText>
+              <Pressable
+                onPress={() => {
+                  if (NativeDateTimePicker) {
+                    setEditShowPicker(true);
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.dateSelect,
+                  { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Fecha seleccionada
+                </ThemedText>
+                <ThemedText type="smallBold" style={styles.dateValue}>
+                  {formatShortDate(toISODate(editDate))}
+                </ThemedText>
+              </Pressable>
+              {editShowPicker && NativeDateTimePicker ? (
+                <NativeDateTimePicker
+                  value={editDate}
+                  mode="date"
+                  display="default"
+                  onChange={(_, date) => {
+                    setEditShowPicker(false);
+                    if (!date) return;
+                    setEditDate(date);
+                  }}
+                />
+              ) : null}
+            </View>
+
+            <View style={styles.editBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Nota
+              </ThemedText>
+              <TextInput
+                placeholder="Opcional"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                value={editNote}
+                onChangeText={setEditNote}
+              />
+            </View>
+
+            {editError ? (
+              <ThemedText type="small" style={{ color: theme.accent }}>
+                {editError}
+              </ThemedText>
+            ) : null}
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                onPress={() => setEditingTx(null)}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Cancelar
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                style={({ pressed }) => [
+                  styles.dangerButton,
+                  { borderColor: theme.accent },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                  Eliminar
+                </ThemedText>
+              </Pressable>
+            </View>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={handleSaveEdit}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  { backgroundColor: theme.brand },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
+                  Guardar cambios
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={filtersOpen}
@@ -454,7 +758,7 @@ export default function MovementsScreen() {
                   { backgroundColor: theme.brand },
                   pressed && styles.pressed,
                 ]}>
-                <ThemedText type="smallBold" style={[styles.closeText, { color: theme.onBrand }]}>
+                <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
                   Listo
                 </ThemedText>
               </Pressable>
@@ -483,7 +787,6 @@ export default function MovementsScreen() {
           }}
         />
       ) : null}
-
     </Screen>
   );
 }
@@ -491,6 +794,9 @@ export default function MovementsScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  editHint: {
     marginTop: Spacing.two,
   },
   headerRow: {
@@ -531,6 +837,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     gap: Spacing.two,
   },
+  editBlock: {
+    marginTop: Spacing.two,
+    gap: Spacing.one,
+  },
   customRange: {
     gap: Spacing.two,
   },
@@ -545,6 +855,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     gap: Spacing.one,
+  },
+  dateSelect: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    minHeight: 48,
+    justifyContent: 'center',
+    gap: 4,
+  },
+  dateValue: {
+    marginTop: 2,
   },
   webInputs: {
     gap: Spacing.two,
@@ -576,13 +898,14 @@ const styles = StyleSheet.create({
   },
   listGap: {
     marginTop: Spacing.three,
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.two,
+    paddingVertical: Spacing.one,
   },
   itemInfo: {
     flex: 1,
@@ -600,14 +923,39 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     borderRadius: 20,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.two,
   },
   modalHeader: {
     gap: Spacing.one,
   },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
   modalActions: {
     gap: Spacing.two,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  dangerButton: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   outlineButton: {
     paddingVertical: Spacing.three,
@@ -620,6 +968,33 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     borderRadius: 16,
     alignItems: 'center',
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  amountInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: Spacing.one + 1,
+    paddingHorizontal: Spacing.three,
+    fontSize: 14,
+    fontWeight: '600',
+    minHeight: 38,
+  },
+  currencyPicker: {
+    height: 40,
+    justifyContent: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: Spacing.one + 1,
+    paddingHorizontal: Spacing.three,
+    fontSize: 14,
+    fontWeight: '600',
   },
   closeText: {
     color: '#ffffff',

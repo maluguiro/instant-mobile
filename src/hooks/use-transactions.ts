@@ -1,6 +1,6 @@
 ﻿import { useCallback, useState } from 'react';
 
-import { addTransaction, getTransactions } from '@/lib/transactions';
+import { addTransaction, deleteTransaction, getTransactions, updateTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 
 export function useTransactions() {
@@ -28,10 +28,23 @@ export function useTransactions() {
     }
   }, []);
 
+  const update = useCallback(async (id: string, payload: Partial<Transaction>) => {
+    const updated = await updateTransaction(id, payload);
+    if (!updated) return;
+    setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx)));
+  }, []);
+
+  const remove = useCallback(async (id: string) => {
+    await deleteTransaction(id);
+    setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+  }, []);
+
   return {
     transactions,
     loading,
     refresh,
     add,
+    update,
+    remove,
   };
 }

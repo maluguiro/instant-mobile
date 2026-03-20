@@ -32,6 +32,7 @@ model Transaction {
   category  String
   date      DateTime
   method    String
+  note      String?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 }

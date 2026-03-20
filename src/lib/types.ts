@@ -8,6 +8,7 @@ export type Transaction = {
   category: string;
   date: string; // ISO date YYYY-MM-DD
   method: string;
+  note?: string;
   createdAt: string; // ISO timestamp
 };
 import { CurrencyCode } from '@/lib/app-settings';

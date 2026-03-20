@@ -62,6 +62,7 @@ export async function addTransaction(item: Transaction): Promise<Transaction[]> 
         category: item.category,
         date: item.date,
         method: item.method,
+        note: item.note ?? '',
       },
     });
 
@@ -80,15 +81,22 @@ export async function addTransaction(item: Transaction): Promise<Transaction[]> 
 export async function updateTransaction(id: string, payload: Partial<Transaction>): Promise<Transaction | null> {
   const token = await getAuthToken();
   if (!token) {
-    return null;
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = items.map((tx) => (tx.id === id ? { ...tx, ...payload } : tx));
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    return next.find((tx) => tx.id === id) ?? null;
   }
 
   try {
-    return await apiRequest<Transaction>(`/transactions/${id}`, {
+    const updated = await apiRequest<Transaction>(`/transactions/${id}`, {
       method: 'PUT',
       token,
       body: payload,
     });
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = items.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx));
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    return updated;
   } catch {
     return null;
   }
@@ -97,6 +105,9 @@ export async function updateTransaction(id: string, payload: Partial<Transaction
 export async function deleteTransaction(id: string): Promise<void> {
   const token = await getAuthToken();
   if (!token) {
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = items.filter((tx) => tx.id !== id);
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
     return;
   }
 
@@ -105,6 +116,9 @@ export async function deleteTransaction(id: string): Promise<void> {
       method: 'DELETE',
       token,
     });
+    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const next = items.filter((tx) => tx.id !== id);
+    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
   } catch {
     return;
   }

@@ -10,6 +10,7 @@ const transactionSchema = z.object({
   category: z.string().min(1),
   date: z.string().min(1),
   method: z.string().min(1),
+  note: z.string().optional(),
 });
 
 export const transactionsRouter = Router();
@@ -38,6 +39,7 @@ transactionsRouter.get('/', async (req, res) => {
       category: item.category,
       date: item.date.toISOString().slice(0, 10),
       method: item.method,
+      note: item.note ?? undefined,
       createdAt: item.createdAt.toISOString(),
     }))
   );
@@ -48,7 +50,7 @@ transactionsRouter.post('/', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
   }
-  const { type, amount, currency, category, date, method } = parsed.data;
+  const { type, amount, currency, category, date, method, note } = parsed.data;
   const transactionModel = getTransactionModel();
   const created = await transactionModel.create({
     data: {
@@ -59,6 +61,7 @@ transactionsRouter.post('/', async (req, res) => {
       category,
       date: new Date(date + 'T00:00:00'),
       method,
+      note: note?.trim() ? note.trim() : null,
     },
   });
   return res.status(201).json({
@@ -69,6 +72,7 @@ transactionsRouter.post('/', async (req, res) => {
     category: created.category,
     date: created.date.toISOString().slice(0, 10),
     method: created.method,
+    note: created.note ?? undefined,
     createdAt: created.createdAt.toISOString(),
   });
 });
@@ -96,6 +100,7 @@ transactionsRouter.put('/:id', async (req, res) => {
       category: data.category ?? existing.category,
       method: data.method ?? existing.method,
       date: data.date ? new Date(data.date + 'T00:00:00') : existing.date,
+      note: typeof data.note === 'string' ? (data.note.trim() ? data.note.trim() : null) : existing.note,
     },
   });
   return res.json({
@@ -106,6 +111,7 @@ transactionsRouter.put('/:id', async (req, res) => {
     category: updated.category,
     date: updated.date.toISOString().slice(0, 10),
     method: updated.method,
+    note: updated.note ?? undefined,
     createdAt: updated.createdAt.toISOString(),
   });
 });
