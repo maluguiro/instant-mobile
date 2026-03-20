@@ -219,16 +219,25 @@ export default function MovementsScreen() {
       return;
     }
 
-    await update(editingTx.id, {
-      type: editType,
-      amount: value,
-      currency: editCurrency,
-      category: editCategory.trim(),
-      method: editMethod.trim(),
-      date: toISODate(editDate),
-      note: editNote.trim() ? editNote.trim() : undefined,
-    });
-    setEditingTx(null);
+    try {
+      const updated = await update(editingTx.id, {
+        type: editType,
+        amount: value,
+        currency: editCurrency,
+        category: editCategory.trim(),
+        method: editMethod.trim(),
+        date: toISODate(editDate),
+        note: editNote.trim() ? editNote.trim() : undefined,
+      });
+      if (!updated) {
+        setEditError('No pudimos guardar este movimiento. Probá de nuevo.');
+        return;
+      }
+      setEditingTx(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No pudimos guardar este movimiento.';
+      setEditError(message);
+    }
   };
 
   const handleDelete = async () => {

@@ -30,8 +30,9 @@ export function useTransactions() {
 
   const update = useCallback(async (id: string, payload: Partial<Transaction>) => {
     const updated = await updateTransaction(id, payload);
-    if (!updated) return;
+    if (!updated) return null;
     setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx)));
+    return updated;
   }, []);
 
   const remove = useCallback(async (id: string) => {

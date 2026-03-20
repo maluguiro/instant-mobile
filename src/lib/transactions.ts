@@ -87,19 +87,15 @@ export async function updateTransaction(id: string, payload: Partial<Transaction
     return next.find((tx) => tx.id === id) ?? null;
   }
 
-  try {
-    const updated = await apiRequest<Transaction>(`/transactions/${id}`, {
-      method: 'PUT',
-      token,
-      body: payload,
-    });
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    const next = items.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx));
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
-    return updated;
-  } catch {
-    return null;
-  }
+  const updated = await apiRequest<Transaction>(`/transactions/${id}`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  });
+  const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+  const next = items.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx));
+  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  return updated;
 }
 
 export async function deleteTransaction(id: string): Promise<void> {

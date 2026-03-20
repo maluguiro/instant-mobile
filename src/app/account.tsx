@@ -22,11 +22,6 @@ export default function AccountScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [emailDraft, setEmailDraft] = useState('');
   const [saveError, setSaveError] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordMessage, setPasswordMessage] = useState('');
-  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     canUseBiometrics().then(setBiometricsAvailable);
@@ -61,13 +56,13 @@ export default function AccountScreen() {
       <View style={styles.header}>
         <ThemedText type="subtitle">Cuenta</ThemedText>
         <ThemedText themeColor="textSecondary">
-          Guardá tu información y preparate para respaldo y sincronización.
+          Gestioná tu perfil y tus accesos de forma simple y segura.
         </ThemedText>
       </View>
 
       <Card variant="soft" style={styles.statusCard}>
         <View style={styles.statusHeader}>
-          <SectionHeader title="Estado de sesión" />
+          <SectionHeader title="Perfil" />
           <Pill label={user ? 'Activa' : 'Sin sesión'} tone={user ? 'accent' : 'default'} />
         </View>
 
@@ -76,46 +71,62 @@ export default function AccountScreen() {
             Revisando tu sesión...
           </ThemedText>
         ) : user ? (
-          <View style={styles.profileRow}>
-            <View style={[styles.avatar, { backgroundColor: theme.brandSoft }]}>
-              <ThemedText type="smallBold">{user.name.slice(0, 2).toUpperCase()}</ThemedText>
-            </View>
-            <View style={styles.profileInfo}>
-              {isEditing ? (
-                <View style={styles.profileInputs}>
-                  <TextInput
-                    placeholder="Nombre"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[
-                      styles.input,
-                      { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    ]}
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                  />
-                  <TextInput
-                    placeholder="Email"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[
-                      styles.input,
-                      { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    ]}
-                    value={emailDraft}
-                    onChangeText={setEmailDraft}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
-              ) : (
-                <>
-                  <ThemedText type="smallBold">{user.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {user.email}
+          <>
+            <View style={styles.profileRow}>
+              <View style={[styles.avatar, { backgroundColor: theme.brandSoft }]}>
+                <ThemedText type="smallBold">{user.name.slice(0, 2).toUpperCase()}</ThemedText>
+              </View>
+              <View style={styles.profileInfo}>
+                <ThemedText type="smallBold">{user.name}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {user.email}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Sesión activa
+                </ThemedText>
+              </View>
+              {!isEditing ? (
+                <Pressable
+                  onPress={() => setIsEditing(true)}
+                  style={({ pressed }) => [
+                    styles.ghostButton,
+                    { borderColor: theme.border },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Editar
                   </ThemedText>
-                </>
-              )}
+                </Pressable>
+              ) : null}
             </View>
-          </View>
+
+            {isEditing ? (
+              <View style={styles.profileInputs}>
+                <TextInput
+                  placeholder="Nombre"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.input,
+                    { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                  ]}
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                />
+                <TextInput
+                  placeholder="Email"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.input,
+                    { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                  ]}
+                  value={emailDraft}
+                  onChangeText={setEmailDraft}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+              </View>
+            ) : null}
+          </>
         ) : (
           <ThemedText type="small" themeColor="textSecondary">
             No hay una sesión iniciada. Creá una cuenta para respaldar tus datos.
@@ -124,59 +135,53 @@ export default function AccountScreen() {
 
         {user ? (
           <View style={styles.profileActions}>
-            {isEditing ? (
-              <Pressable
-                onPress={async () => {
-                  setSaveError('');
-                  try {
-                    await updateProfile({
-                      name: nameDraft.trim() || user.name,
-                      email: emailDraft.trim() || user.email,
-                    });
+            <View style={styles.profileButtonsRow}>
+              {isEditing ? (
+                <Pressable
+                  onPress={async () => {
+                    setSaveError('');
+                    try {
+                      await updateProfile({
+                        name: nameDraft.trim() || user.name,
+                        email: emailDraft.trim() || user.email,
+                      });
+                      setIsEditing(false);
+                    } catch (err) {
+                      setSaveError(err instanceof Error ? err.message : 'No pudimos guardar los cambios.');
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    { backgroundColor: theme.brand },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+                    Guardar
+                  </ThemedText>
+                </Pressable>
+              ) : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Tocá “Editar” para actualizar tu perfil.
+                </ThemedText>
+              )}
+              {isEditing ? (
+                <Pressable
+                  onPress={() => {
                     setIsEditing(false);
-                  } catch (err) {
-                    setSaveError(err instanceof Error ? err.message : 'No pudimos guardar los cambios.');
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  { backgroundColor: theme.brand },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-                  Guardar cambios
-                </ThemedText>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => setIsEditing(true)}
-                style={({ pressed }) => [
-                  styles.outlineButton,
-                  { borderColor: theme.border },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Editar perfil
-                </ThemedText>
-              </Pressable>
-            )}
-            {isEditing ? (
-              <Pressable
-                onPress={() => {
-                  setIsEditing(false);
-                  setNameDraft(user.name);
-                  setEmailDraft(user.email);
-                }}
-                style={({ pressed }) => [
-                  styles.outlineButton,
-                  { borderColor: theme.border },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancelar
-                </ThemedText>
-              </Pressable>
-            ) : null}
+                    setNameDraft(user.name);
+                    setEmailDraft(user.email);
+                  }}
+                  style={({ pressed }) => [
+                    styles.outlineButton,
+                    { borderColor: theme.border },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Cancelar
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
             {saveError ? (
               <ThemedText type="small" style={{ color: theme.accent }}>
                 {saveError}
@@ -215,82 +220,17 @@ export default function AccountScreen() {
 
       {user ? (
         <Card variant="soft" style={styles.securityCard}>
-          <SectionHeader title="Seguridad" />
-          <TextInput
-            placeholder="Contraseña actual"
-            placeholderTextColor={theme.textSecondary}
-            style={[
-              styles.input,
-              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-            ]}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-          />
-          <TextInput
-            placeholder="Nueva Contraseña"
-            placeholderTextColor={theme.textSecondary}
-            style={[
-              styles.input,
-              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-            ]}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-          />
-          <TextInput
-            placeholder="Confirmar nueva contraseña"
-            placeholderTextColor={theme.textSecondary}
-            style={[
-              styles.input,
-              { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-            ]}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
-          {passwordError ? (
-            <ThemedText type="small" style={{ color: theme.accent }}>
-              {passwordError}
-            </ThemedText>
-          ) : null}
-          {passwordMessage ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              {passwordMessage}
-            </ThemedText>
-          ) : null}
           <Pressable
-            onPress={async () => {
-              setPasswordError('');
-              setPasswordMessage('');
-              if (newPassword.length < 6) {
-                setPasswordError('La nueva Contraseña debe tener al menos 6 caracteres.');
-                return;
-              }
-              if (newPassword !== confirmPassword) {
-                setPasswordError('Las Contraseña no coinciden.');
-                return;
-              }
-              try {
-                await updateProfile({
-                  currentPassword,
-                  newPassword,
-                });
-                setCurrentPassword('');
-                setNewPassword('');
-                setConfirmPassword('');
-                setPasswordMessage('Contraseña actualizada.');
-              } catch (err) {
-                setPasswordError(err instanceof Error ? err.message : 'No pudimos actualizar la Contraseña.');
-              }
-            }}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              { backgroundColor: theme.brand },
-              pressed && styles.pressed,
-            ]}>
-            <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-              Cambiar Contraseña
+            onPress={() => router.push('/account-security')}
+            style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
+            <View style={styles.listInfo}>
+              <ThemedText type="smallBold">Seguridad</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Cambiá tu contraseña cuando lo necesites.
+              </ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              Ver
             </ThemedText>
           </Pressable>
         </Card>
@@ -345,17 +285,9 @@ export default function AccountScreen() {
       <Card variant="soft" style={styles.syncCard}>
         <SectionHeader title="Respaldo y sincronización" />
         <ThemedText type="small" themeColor="textSecondary">
-          Estamos preparando el respaldo automático para tus movimientos, metas y calendario.
+          El respaldo automático estará disponible más adelante. Por ahora tus datos se guardan en este dispositivo.
         </ThemedText>
-        <View style={styles.syncRow}>
-          <View>
-            <ThemedText type="smallBold">Instant Cloud</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Próximamente disponible
-            </ThemedText>
-          </View>
-          <Pill label="Próximamente" tone="accent" />
-        </View>
+        <Pill label="En preparación" tone="default" />
       </Card>
 
       {user ? (
@@ -381,7 +313,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   statusCard: {
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -406,10 +338,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileInputs: {
+    marginTop: Spacing.one,
     gap: Spacing.one,
   },
   profileActions: {
     gap: Spacing.two,
+  },
+  profileButtonsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  ghostButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actions: {
     gap: Spacing.two,
@@ -417,30 +363,53 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: Spacing.one,
+    paddingVertical: Spacing.one + 1,
     paddingHorizontal: Spacing.two,
     fontSize: 14,
     fontWeight: '600',
   },
   primaryButton: {
-    paddingVertical: Spacing.three,
-    borderRadius: 16,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
   },
   outlineButton: {
     paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
     borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
     borderWidth: 1,
   },
   primaryText: {
-    fontSize: 15,
+    fontSize: 14,
+    lineHeight: 18,
   },
   syncCard: {
-    gap: Spacing.two,
+    gap: Spacing.one,
   },
   securityCard: {
     gap: Spacing.two,
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  listInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  securityFields: {
+    gap: Spacing.one + 2,
+  },
+  fieldBlock: {
+    gap: 6,
   },
   securityRow: {
     flexDirection: 'row',
