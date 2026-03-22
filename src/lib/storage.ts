@@ -50,3 +50,14 @@ export async function clearAllData(): Promise<void> {
     // ignore for now
   }
 }
+
+export async function clearUserData(): Promise<void> {
+  const keysToClear = Object.values(STORAGE_KEYS).filter(
+    (key) => key !== STORAGE_KEYS.auth && key !== STORAGE_KEYS.biometricToken
+  );
+  try {
+    await AsyncStorage.multiRemove(keysToClear);
+  } catch {
+    // ignore for now
+  }
+}

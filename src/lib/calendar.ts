@@ -10,6 +10,8 @@ export type DueDate = {
   category?: string;
   method?: string;
   note?: string;
+  important?: boolean;
+  calendarExported?: boolean;
   status?: 'pending' | 'paid';
   createdAt: string;
 };
@@ -27,6 +29,8 @@ export type RecurringPayment = {
   endDate?: string;
   category?: string;
   method?: string;
+  important?: boolean;
+  calendarExported?: boolean;
   status?: 'active' | 'paused' | 'ended';
   createdAt: string;
 };
@@ -41,6 +45,8 @@ export type Installment = {
   nextDate: string; // YYYY-MM-DD
   category?: string;
   method?: string;
+  important?: boolean;
+  calendarExported?: boolean;
   status?: 'active' | 'completed';
   createdAt: string;
 };
@@ -51,6 +57,8 @@ export async function getDueDates(): Promise<DueDate[]> {
   return items.map((item) => ({
     status: 'pending',
     currency: item.currency ?? defaultCurrency,
+    important: Boolean(item.important),
+    calendarExported: Boolean(item.calendarExported),
     ...item,
   }));
 }
@@ -81,6 +89,8 @@ export async function getRecurringPayments(): Promise<RecurringPayment[]> {
     durationType: 'indefinite',
     durationMonths: 0,
     currency: item.currency ?? defaultCurrency,
+    important: Boolean(item.important),
+    calendarExported: Boolean(item.calendarExported),
     ...item,
   }));
 }
@@ -109,6 +119,8 @@ export async function getInstallments(): Promise<Installment[]> {
   return items.map((item) => ({
     status: item.current >= item.total ? 'completed' : 'active',
     currency: item.currency ?? defaultCurrency,
+    important: Boolean(item.important),
+    calendarExported: Boolean(item.calendarExported),
     ...item,
   }));
 }

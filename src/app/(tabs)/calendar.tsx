@@ -1,7 +1,8 @@
-
+﻿
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Linking, Modal, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
+import { scheduleLocalNotifications } from '@/lib/notifications';
 import {
   addDueDate,
   addInstallment,
@@ -72,9 +74,29 @@ function daysUntil(date: string) {
   return diff;
 }
 
+function formatCalendarDate(dateStr: string) {
+  return dateStr.replace(/-/g, '');
+}
+
+async function openGoogleCalendarEvent(title: string, dateStr: string, details?: string) {
+  const start = formatCalendarDate(dateStr);
+  const end = formatCalendarDate(dateStr);
+  const url =
+    'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    `&text=${encodeURIComponent(title)}` +
+    `&dates=${start}/${end}` +
+    (details ? `&details=${encodeURIComponent(details)}` : '');
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Google Calendar', 'No pudimos abrir el calendario.');
+  }
+}
+
 export default function CalendarScreen() {
   const theme = useTheme();
   const { settings: appSettings } = useAppSettings();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
 
   const [activeTab, setActiveTab] = useState<Tab>('Próximos vencimientos');
@@ -110,6 +132,8 @@ export default function CalendarScreen() {
   const [dueCategory, setDueCategory] = useState('');
   const [dueMethod, setDueMethod] = useState('');
   const [dueNote, setDueNote] = useState('');
+  const [dueImportant, setDueImportant] = useState(false);
+  const [dueCalendarExport, setDueCalendarExport] = useState(false);
 
   const [recName, setRecName] = useState('');
   const [recAmount, setRecAmount] = useState('');
@@ -122,6 +146,8 @@ export default function CalendarScreen() {
   const [recDurationType, setRecDurationType] = useState<DurationType>('indefinite');
   const [recDurationMonths, setRecDurationMonths] = useState('6');
   const [recEndDate, setRecEndDate] = useState<Date>(new Date());
+  const [recImportant, setRecImportant] = useState(false);
+  const [recCalendarExport, setRecCalendarExport] = useState(false);
 
   const [instName, setInstName] = useState('');
   const [instAmount, setInstAmount] = useState('');
@@ -131,6 +157,8 @@ export default function CalendarScreen() {
   const [instNextDate, setInstNextDate] = useState<Date>(new Date());
   const [instCategory, setInstCategory] = useState('');
   const [instMethod, setInstMethod] = useState('');
+  const [instImportant, setInstImportant] = useState(false);
+  const [instCalendarExport, setInstCalendarExport] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -145,6 +173,17 @@ export default function CalendarScreen() {
       );
     }, [])
   );
+
+  useEffect(() => {
+    if (!params?.tab) return;
+    if (params.tab === 'due') setActiveTab('Próximos vencimientos');
+    if (params.tab === 'recurring') setActiveTab('Recurrentes');
+    if (params.tab === 'installments') setActiveTab('Cuotas');
+  }, [params?.tab]);
+
+  useEffect(() => {
+    scheduleLocalNotifications();
+  }, [dueDates, recurring, installments]);
 
   const activeDueDates = useMemo(() => dueDates.filter((item) => item.status !== 'paid'), [dueDates]);
   const activeRecurring = useMemo(
@@ -212,6 +251,8 @@ export default function CalendarScreen() {
     setDueCategory('');
     setDueMethod('');
     setDueNote('');
+    setDueImportant(false);
+    setDueCalendarExport(false);
 
     setRecName('');
     setRecAmount('');
@@ -224,6 +265,8 @@ export default function CalendarScreen() {
     setRecDurationType('indefinite');
     setRecDurationMonths('6');
     setRecEndDate(new Date());
+    setRecImportant(false);
+    setRecCalendarExport(false);
 
     setInstName('');
     setInstAmount('');
@@ -233,6 +276,8 @@ export default function CalendarScreen() {
     setInstNextDate(new Date());
     setInstCategory('');
     setInstMethod('');
+    setInstImportant(false);
+    setInstCalendarExport(false);
 
     setNewOption('');
     setAddingOption(false);
@@ -255,11 +300,16 @@ export default function CalendarScreen() {
         category: dueCategory || undefined,
         method: dueMethod || undefined,
         note: dueNote.trim() || undefined,
+        important: dueImportant,
+        calendarExported: dueCalendarExport,
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
       const next = await addDueDate(item);
       setDueDates(next);
+      if (dueCalendarExport) {
+        await openGoogleCalendarEvent(name, item.date, 'Pago único en Instant');
+      }
     }
 
     if (addType === 'Recurrente') {
@@ -282,11 +332,16 @@ export default function CalendarScreen() {
         endDate: recDurationType === 'until' ? toISODate(recEndDate) : undefined,
         category: recCategory || undefined,
         method: recMethod || undefined,
+        important: recImportant,
+        calendarExported: recCalendarExport,
         status: 'active',
         createdAt: new Date().toISOString(),
       };
       const next = await addRecurringPayment(item);
       setRecurring(next);
+      if (recCalendarExport) {
+        await openGoogleCalendarEvent(name, item.nextDate, 'Pago recurrente en Instant');
+      }
     }
 
     if (addType === 'Cuota') {
@@ -308,11 +363,16 @@ export default function CalendarScreen() {
         nextDate: toISODate(instNextDate),
         category: instCategory || undefined,
         method: instMethod || undefined,
+        important: instImportant,
+        calendarExported: instCalendarExport,
         status: 'active',
         createdAt: new Date().toISOString(),
       };
       const next = await addInstallment(item);
       setInstallments(next);
+      if (instCalendarExport) {
+        await openGoogleCalendarEvent(name, item.nextDate, 'Cuota en Instant');
+      }
     }
 
     resetForms();
@@ -836,6 +896,33 @@ export default function CalendarScreen() {
                   value={dueNote}
                   onChangeText={setDueNote}
                 />
+                <View style={styles.toggleRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Marcar como importante
+                  </ThemedText>
+                  <Switch
+                    value={dueImportant}
+                    onValueChange={(value) => {
+                      setDueImportant(value);
+                      if (!value) setDueCalendarExport(false);
+                    }}
+                    trackColor={{ false: theme.border, true: theme.brandSoft }}
+                    thumbColor={dueImportant ? theme.brand : theme.onBrand}
+                  />
+                </View>
+                {dueImportant ? (
+                  <View style={styles.toggleRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Agregar a Google Calendar
+                    </ThemedText>
+                    <Switch
+                      value={dueCalendarExport}
+                      onValueChange={setDueCalendarExport}
+                      trackColor={{ false: theme.border, true: theme.brandSoft }}
+                      thumbColor={dueCalendarExport ? theme.brand : theme.onBrand}
+                    />
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -1007,6 +1094,33 @@ export default function CalendarScreen() {
                   </ThemedText>
                   <ThemedText type="smallBold">{recMethod || 'Seleccionar'}</ThemedText>
                 </Pressable>
+                <View style={styles.toggleRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Marcar como importante
+                  </ThemedText>
+                  <Switch
+                    value={recImportant}
+                    onValueChange={(value) => {
+                      setRecImportant(value);
+                      if (!value) setRecCalendarExport(false);
+                    }}
+                    trackColor={{ false: theme.border, true: theme.brandSoft }}
+                    thumbColor={recImportant ? theme.brand : theme.onBrand}
+                  />
+                </View>
+                {recImportant ? (
+                  <View style={styles.toggleRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Agregar a Google Calendar
+                    </ThemedText>
+                    <Switch
+                      value={recCalendarExport}
+                      onValueChange={setRecCalendarExport}
+                      trackColor={{ false: theme.border, true: theme.brandSoft }}
+                      thumbColor={recCalendarExport ? theme.brand : theme.onBrand}
+                    />
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -1105,6 +1219,33 @@ export default function CalendarScreen() {
                   </ThemedText>
                   <ThemedText type="smallBold">{instMethod || 'Seleccionar'}</ThemedText>
                 </Pressable>
+                <View style={styles.toggleRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Marcar como importante
+                  </ThemedText>
+                  <Switch
+                    value={instImportant}
+                    onValueChange={(value) => {
+                      setInstImportant(value);
+                      if (!value) setInstCalendarExport(false);
+                    }}
+                    trackColor={{ false: theme.border, true: theme.brandSoft }}
+                    thumbColor={instImportant ? theme.brand : theme.onBrand}
+                  />
+                </View>
+                {instImportant ? (
+                  <View style={styles.toggleRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Agregar a Google Calendar
+                    </ThemedText>
+                    <Switch
+                      value={instCalendarExport}
+                      onValueChange={setInstCalendarExport}
+                      trackColor={{ false: theme.border, true: theme.brandSoft }}
+                      thumbColor={instCalendarExport ? theme.brand : theme.onBrand}
+                    />
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -1317,6 +1458,12 @@ const styles = StyleSheet.create({
   formStack: {
     gap: Spacing.two,
   },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
   inlineLabel: {
     marginTop: Spacing.one,
   },
@@ -1369,3 +1516,4 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
