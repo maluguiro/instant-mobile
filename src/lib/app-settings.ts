@@ -14,6 +14,7 @@ export type AppSettings = {
     snoozeEnabled: boolean;
     dueDatesImportantOnly: boolean;
     dueDatesMinAmount: number;
+    importantHintShown: boolean;
     advanceDays: {
       dueDates: number;
       weekly: number;
@@ -53,6 +54,7 @@ export const defaultAppSettings: AppSettings = {
     snoozeEnabled: true,
     dueDatesImportantOnly: false,
     dueDatesMinAmount: 0,
+    importantHintShown: false,
     advanceDays: {
       dueDates: 2,
       weekly: 2,

@@ -1,6 +1,7 @@
 ﻿import { useFocusEffect } from '@react-navigation/native';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -52,6 +53,8 @@ export default function MovementsScreen() {
   const theme = useTheme();
   const { transactions, refresh, update, remove } = useTransactions();
   const { settings: appSettings } = useAppSettings();
+  const params = useLocalSearchParams<{ edit?: string | string[] }>();
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
   const [search, setSearch] = useState('');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('Este mes');
@@ -70,6 +73,7 @@ export default function MovementsScreen() {
   const [editCategory, setEditCategory] = useState('');
   const [editMethod, setEditMethod] = useState('');
   const [editNote, setEditNote] = useState('');
+  const [editWeekly, setEditWeekly] = useState(false);
   const [editDate, setEditDate] = useState<Date>(new Date());
   const [editShowPicker, setEditShowPicker] = useState(false);
   const [editCategories, setEditCategories] = useState<string[]>([]);
@@ -81,6 +85,29 @@ export default function MovementsScreen() {
       refresh();
     }, [refresh])
   );
+
+  useEffect(() => {
+    const editParam = Array.isArray(params?.edit) ? params?.edit[0] : params?.edit;
+    if (editParam) {
+      setPendingEditId(editParam);
+    }
+  }, [params?.edit]);
+
+  useEffect(() => {
+    if (!pendingEditId || editingTx) return;
+    const target = transactions.find((tx) => tx.id === pendingEditId);
+    if (target) {
+      openEdit(target);
+      setPendingEditId(null);
+      router.setParams({ edit: undefined });
+    }
+  }, [pendingEditId, transactions, editingTx]);
+
+  useEffect(() => {
+    if (editType === 'income') {
+      setEditWeekly(false);
+    }
+  }, [editType]);
 
   useEffect(() => {
     if (!editingTx) return;
@@ -196,6 +223,7 @@ export default function MovementsScreen() {
     setEditMethod(tx.method);
     setEditNote(tx.note ?? '');
     setEditDate(new Date(tx.date + 'T00:00:00'));
+    setEditWeekly(Boolean(tx.weekly));
   };
 
   const handleSaveEdit = async () => {
@@ -228,6 +256,7 @@ export default function MovementsScreen() {
         method: editMethod.trim(),
         date: toISODate(editDate),
         note: editNote.trim() ? editNote.trim() : undefined,
+        weekly: editType === 'expense' ? editWeekly : false,
       });
       if (!updated) {
         setEditError('No pudimos guardar este movimiento. Probá de nuevo.');
@@ -415,197 +444,220 @@ export default function MovementsScreen() {
         onRequestClose={() => setEditingTx(null)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleRow}>
-                <ThemedText type="subtitle">Editar movimiento</ThemedText>
-                <Pressable onPress={() => setEditingTx(null)} hitSlop={8}>
-                  <Feather name="x" size={18} color={theme.textSecondary} />
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleRow}>
+                  <ThemedText type="subtitle">Editar movimiento</ThemedText>
+                  <Pressable onPress={() => setEditingTx(null)} hitSlop={8}>
+                    <Feather name="x" size={18} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Ajustá los datos y guardá los cambios.
+                </ThemedText>
+              </View>
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Tipo
+                </ThemedText>
+                <View style={styles.filters}>
+                  <SelectableOption
+                    label="Ingreso"
+                    selected={editType === 'income'}
+                    onPress={() => setEditType('income')}
+                  />
+                  <SelectableOption
+                    label="Egreso"
+                    selected={editType === 'expense'}
+                    onPress={() => setEditType('expense')}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Monto
+                </ThemedText>
+                <View style={styles.amountRow}>
+                  <TextInput
+                    placeholder="0"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.amountInput, { color: theme.text, borderColor: theme.border }]}
+                    keyboardType="numeric"
+                    value={editAmount}
+                    onChangeText={setEditAmount}
+                  />
+                  <CurrencySelect
+                    value={editCurrency}
+                    onChange={setEditCurrency}
+                    label=""
+                    compact
+                    style={styles.currencyPicker}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Categoría
+                </ThemedText>
+                <View style={styles.filters}>
+                  {editCategoryOptions.map((item) => (
+                    <SelectableOption
+                      key={item}
+                      label={item}
+                      selected={editCategory === item}
+                      onPress={() => setEditCategory(item)}
+                    />
+                  ))}
+                </View>
+                <TextInput
+                  placeholder="Otra categoría"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={editCategory}
+                  onChangeText={setEditCategory}
+                />
+              </View>
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Método
+                </ThemedText>
+                <View style={styles.filters}>
+                  {editMethods.map((item) => (
+                    <SelectableOption
+                      key={item}
+                      label={item}
+                      selected={editMethod === item}
+                      onPress={() => setEditMethod(item)}
+                    />
+                  ))}
+                </View>
+                <TextInput
+                  placeholder="Otro método"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={editMethod}
+                  onChangeText={setEditMethod}
+                />
+              </View>
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Fecha
+                </ThemedText>
+                <Pressable
+                  onPress={() => {
+                    if (NativeDateTimePicker) {
+                      setEditShowPicker(true);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.dateSelect,
+                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Fecha seleccionada
+                  </ThemedText>
+                  <ThemedText type="smallBold" style={styles.dateValue}>
+                    {formatShortDate(toISODate(editDate))}
+                  </ThemedText>
+                </Pressable>
+                {editShowPicker && NativeDateTimePicker ? (
+                  <NativeDateTimePicker
+                    value={editDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_, date) => {
+                      setEditShowPicker(false);
+                      if (!date) return;
+                      setEditDate(date);
+                    }}
+                  />
+                ) : null}
+              </View>
+
+              {editType === 'expense' ? (
+                <View style={styles.editBlock}>
+                  <View style={styles.toggleRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Usar disponible semanal
+                    </ThemedText>
+                    <Switch
+                      value={editWeekly}
+                      onValueChange={setEditWeekly}
+                      trackColor={{ false: theme.border, true: theme.brandSoft }}
+                      thumbColor={editWeekly ? theme.brand : theme.onBrand}
+                    />
+                  </View>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Este gasto se descuenta de la bolsa semanal.
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              <View style={styles.editBlock}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Nota
+                </ThemedText>
+                <TextInput
+                  placeholder="Opcional"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                  value={editNote}
+                  onChangeText={setEditNote}
+                />
+              </View>
+
+              {editError ? (
+                <ThemedText type="small" style={{ color: theme.accent }}>
+                  {editError}
+                </ThemedText>
+              ) : null}
+
+              <View style={styles.modalActionsRow}>
+                <Pressable
+                  onPress={() => setEditingTx(null)}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Cancelar
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={handleDelete}
+                  style={({ pressed }) => [
+                    styles.dangerButton,
+                    { borderColor: theme.accent },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                    Eliminar
+                  </ThemedText>
                 </Pressable>
               </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                Ajustá los datos y guardá los cambios.
-              </ThemedText>
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Tipo
-              </ThemedText>
-              <View style={styles.filters}>
-                <SelectableOption
-                  label="Ingreso"
-                  selected={editType === 'income'}
-                  onPress={() => setEditType('income')}
-                />
-                <SelectableOption
-                  label="Egreso"
-                  selected={editType === 'expense'}
-                  onPress={() => setEditType('expense')}
-                />
+              <View style={styles.modalActions}>
+                <Pressable
+                  onPress={handleSaveEdit}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    { backgroundColor: theme.brand },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
+                    Guardar cambios
+                  </ThemedText>
+                </Pressable>
               </View>
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Monto
-              </ThemedText>
-              <View style={styles.amountRow}>
-                <TextInput
-                  placeholder="0"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.amountInput, { color: theme.text, borderColor: theme.border }]}
-                  keyboardType="numeric"
-                  value={editAmount}
-                  onChangeText={setEditAmount}
-                />
-                <CurrencySelect
-                  value={editCurrency}
-                  onChange={setEditCurrency}
-                  label=""
-                  compact
-                  style={styles.currencyPicker}
-                />
-              </View>
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Categoría
-              </ThemedText>
-              <View style={styles.filters}>
-                {editCategoryOptions.map((item) => (
-                  <SelectableOption
-                    key={item}
-                    label={item}
-                    selected={editCategory === item}
-                    onPress={() => setEditCategory(item)}
-                  />
-                ))}
-              </View>
-              <TextInput
-                placeholder="Otra categoría"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                value={editCategory}
-                onChangeText={setEditCategory}
-              />
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Método
-              </ThemedText>
-              <View style={styles.filters}>
-                {editMethods.map((item) => (
-                  <SelectableOption
-                    key={item}
-                    label={item}
-                    selected={editMethod === item}
-                    onPress={() => setEditMethod(item)}
-                  />
-                ))}
-              </View>
-              <TextInput
-                placeholder="Otro método"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                value={editMethod}
-                onChangeText={setEditMethod}
-              />
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Fecha
-              </ThemedText>
-              <Pressable
-                onPress={() => {
-                  if (NativeDateTimePicker) {
-                    setEditShowPicker(true);
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.dateSelect,
-                  { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Fecha seleccionada
-                </ThemedText>
-                <ThemedText type="smallBold" style={styles.dateValue}>
-                  {formatShortDate(toISODate(editDate))}
-                </ThemedText>
-              </Pressable>
-              {editShowPicker && NativeDateTimePicker ? (
-                <NativeDateTimePicker
-                  value={editDate}
-                  mode="date"
-                  display="default"
-                  onChange={(_, date) => {
-                    setEditShowPicker(false);
-                    if (!date) return;
-                    setEditDate(date);
-                  }}
-                />
-              ) : null}
-            </View>
-
-            <View style={styles.editBlock}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Nota
-              </ThemedText>
-              <TextInput
-                placeholder="Opcional"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                value={editNote}
-                onChangeText={setEditNote}
-              />
-            </View>
-
-            {editError ? (
-              <ThemedText type="small" style={{ color: theme.accent }}>
-                {editError}
-              </ThemedText>
-            ) : null}
-
-            <View style={styles.modalActionsRow}>
-              <Pressable
-                onPress={() => setEditingTx(null)}
-                style={({ pressed }) => [
-                  styles.secondaryButton,
-                  { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancelar
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={handleDelete}
-                style={({ pressed }) => [
-                  styles.dangerButton,
-                  { borderColor: theme.accent },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                  Eliminar
-                </ThemedText>
-              </Pressable>
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={handleSaveEdit}
-                style={({ pressed }) => [
-                  styles.closeButton,
-                  { backgroundColor: theme.brand },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
-                  Guardar cambios
-                </ThemedText>
-              </Pressable>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -850,6 +902,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
     gap: Spacing.one,
   },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
   customRange: {
     gap: Spacing.two,
   },
@@ -927,12 +985,17 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
-    padding: Spacing.four,
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.three,
     backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
   modalCard: {
     borderRadius: 20,
     padding: Spacing.three,
+    maxHeight: '90%',
+  },
+  modalContent: {
+    paddingBottom: Spacing.two,
     gap: Spacing.two,
   },
   modalHeader: {
@@ -1012,3 +1075,6 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+
+

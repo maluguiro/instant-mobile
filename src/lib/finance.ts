@@ -98,6 +98,9 @@ export function calculateTotals(transactions: Transaction[], currency?: Currency
 
   for (const tx of transactions) {
     if (currency && getTransactionCurrency(tx) !== currency) continue;
+    if (tx.system === 'weekly-rollover') {
+      continue;
+    }
     if (isSavingsCategory(tx.category)) {
       savingsManual += Math.abs(tx.amount);
       continue;
@@ -106,6 +109,7 @@ export function calculateTotals(transactions: Transaction[], currency?: Currency
     if (tx.type === 'income') {
       income += tx.amount;
     } else {
+      if (tx.weekly) continue;
       expense += tx.amount;
     }
   }

@@ -1,5 +1,6 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -9,8 +10,18 @@ import { Spacing } from '@/constants/theme';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { useTheme } from '@/hooks/use-theme';
 import { requestNotificationsPermission, scheduleLocalNotifications } from '@/lib/notifications';
+import { getDueDates, getInstallments, getRecurringPayments } from '@/lib/calendar';
+import { formatCurrency, formatShortDate } from '@/lib/finance';
 
 type ScheduleType = 'dueDates' | 'weekly' | 'savings' | 'installments' | 'important';
+type ImportantItem = {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  date: string;
+  source: 'due' | 'recurring' | 'installments';
+};
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') return null;
@@ -60,6 +71,7 @@ export default function NotificationsScreen() {
   const [scheduleAdvance, setScheduleAdvance] = useState('0');
   const [scheduleRepeat, setScheduleRepeat] = useState('1');
   const [showPicker, setShowPicker] = useState(false);
+  const [importantItems, setImportantItems] = useState<ImportantItem[]>([]);
   const [expanded, setExpanded] = useState<Record<ScheduleType, boolean>>({
     dueDates: false,
     weekly: false,
@@ -124,6 +136,46 @@ export default function NotificationsScreen() {
   const toggleExpanded = (key: ScheduleType) =>
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  useFocusEffect(
+    useCallback(() => {
+      Promise.all([getDueDates(), getRecurringPayments(), getInstallments()]).then(
+        ([due, recurring, installments]) => {
+          const dueItems = due
+            .filter((item) => item.status !== 'paid' && item.important)
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              amount: item.amount,
+              currency: item.currency,
+              date: item.date,
+              source: 'due' as const,
+            }));
+          const recItems = recurring
+            .filter((item) => item.status === 'active' && item.important)
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              amount: item.amount,
+              currency: item.currency,
+              date: item.nextDate,
+              source: 'recurring' as const,
+            }));
+          const instItems = installments
+            .filter((item) => item.status !== 'completed' && item.important)
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              amount: item.amount,
+              currency: item.currency,
+              date: item.nextDate,
+              source: 'installments' as const,
+            }));
+          setImportantItems([...dueItems, ...recItems, ...instItems]);
+        }
+      );
+    }, [])
+  );
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -180,45 +232,6 @@ export default function NotificationsScreen() {
                 Programar horario
               </ThemedText>
             </Pressable>
-
-            <View style={styles.optionRow}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Solo importantes
-              </ThemedText>
-              <Switch
-                value={settings.notifications.dueDatesImportantOnly}
-                onValueChange={async (value) => {
-                  await update({ notifications: { dueDatesImportantOnly: value } });
-                  await scheduleLocalNotifications();
-                }}
-                trackColor={{ false: theme.border, true: theme.brandSoft }}
-                thumbColor={settings.notifications.dueDatesImportantOnly ? theme.brand : theme.onBrand}
-              />
-            </View>
-            {settings.notifications.dueDatesImportantOnly ? (
-              <View style={styles.optionRow}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Monto mínimo
-                </ThemedText>
-                <TextInput
-                  placeholder="0"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[
-                    styles.numberInput,
-                    { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                  ]}
-                  value={String(settings.notifications.dueDatesMinAmount ?? 0)}
-                  keyboardType="numeric"
-                  onChangeText={async (value) => {
-                    const parsed = Number(value.replace(/[^0-9]/g, '') || 0);
-                    await update({
-                      notifications: { dueDatesMinAmount: Number.isNaN(parsed) ? 0 : parsed },
-                    });
-                    await scheduleLocalNotifications();
-                  }}
-                />
-              </View>
-            ) : null}
           </View>
         ) : null}
       </Card>
@@ -251,27 +264,61 @@ export default function NotificationsScreen() {
             />
           </View>
         </View>
-        {settings.notifications.importantEnabled && expanded.important ? (
+        {expanded.important ? (
           <View style={styles.details}>
-            {!settings.notifications.customized.important ? (
+            {settings.notifications.importantEnabled ? (
+              <>
+                {!settings.notifications.customized.important ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Predeterminado: 11:00 · 2 días antes · Reaviso cada 1 día
+                  </ThemedText>
+                ) : null}
+                <ThemedText type="small" themeColor="textSecondary">
+                  Horario: {formatTime(settings.notifications.important.time)} · Aviso: {settings.notifications.important.advanceDays} días antes · Reaviso: cada {settings.notifications.important.repeatDays} día(s)
+                </ThemedText>
+                <Pressable
+                  onPress={() => openSchedule('important')}
+                  style={({ pressed }) => [
+                    styles.configureButton,
+                    { borderColor: theme.textSecondary, backgroundColor: theme.backgroundElement },
+                    pressed && styles.pressed,
+                  ]}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Programar horario
+                  </ThemedText>
+                </Pressable>
+              </>
+            ) : (
               <ThemedText type="small" themeColor="textSecondary">
-                Predeterminado: 11:00 · 2 días antes · Reaviso cada 1 día
+                Activá esta opción para programar recordatorios importantes.
               </ThemedText>
-            ) : null}
-            <ThemedText type="small" themeColor="textSecondary">
-              Horario: {formatTime(settings.notifications.important.time)} · Aviso: {settings.notifications.important.advanceDays} días antes · Reaviso: cada {settings.notifications.important.repeatDays} día(s)
-            </ThemedText>
-            <Pressable
-              onPress={() => openSchedule('important')}
-              style={({ pressed }) => [
-                styles.configureButton,
-                { borderColor: theme.textSecondary, backgroundColor: theme.backgroundElement },
-                pressed && styles.pressed,
-              ]}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Programar horario
-              </ThemedText>
-            </Pressable>
+            )}
+            <View style={styles.importantList}>
+              <ThemedText type="smallBold">Marcados como importantes</ThemedText>
+              {importantItems.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Todavía no marcaste pagos importantes.
+                </ThemedText>
+              ) : (
+                importantItems.map((item) => (
+                  <View key={`${item.source}-${item.id}`} style={styles.importantRow}>
+                    <View style={styles.importantInfo}>
+                      <ThemedText type="smallBold">{item.name}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {item.source === 'due'
+                          ? 'Vencimiento'
+                          : item.source === 'recurring'
+                            ? 'Recurrente'
+                            : 'Cuota'} · {formatShortDate(item.date)}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="smallBold">
+                      {formatCurrency(item.amount, item.currency)}
+                    </ThemedText>
+                  </View>
+                ))
+              )}
+            </View>
           </View>
         ) : null}
       </Card>
@@ -611,6 +658,19 @@ const styles = StyleSheet.create({
   details: {
     gap: Spacing.one,
   },
+  importantList: {
+    gap: Spacing.one,
+    marginTop: Spacing.one,
+  },
+  importantRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  importantInfo: {
+    flex: 1,
+    gap: 2,
+  },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -684,6 +744,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
 
 
 

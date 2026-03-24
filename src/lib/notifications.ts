@@ -179,9 +179,6 @@ export async function scheduleLocalNotifications(): Promise<void> {
   if (settings.notifications.dueDates) {
     for (const item of dueDates.filter((entry) => entry.status !== 'paid')) {
       if (item.important && useImportant) continue;
-      if (settings.notifications.dueDatesImportantOnly && item.amount < settings.notifications.dueDatesMinAmount) {
-        continue;
-      }
       const date = dateAtHour(item.date, dueTime.hours, dueTime.minutes);
       date.setDate(date.getDate() - dueAdvance);
       const daysLeft = Math.ceil((date.getTime() - Date.now()) / 86400000);

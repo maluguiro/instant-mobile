@@ -22,6 +22,10 @@ export type FinanceSettings = {
   weeklyEveryDays: number;
   weeklyManualEnabledAmount: number;
   weeklyManualEnabledAt: string | null;
+  weeklyLastRenewedAt: string | null;
+  weeklyLastRenewalAmount: number;
+  weeklyRolloverMode: 'keep' | 'savings' | 'goal';
+  weeklyRolloverGoalId?: string;
 };
 
 export const defaultFinanceSettings: FinanceSettings = {
@@ -40,6 +44,10 @@ export const defaultFinanceSettings: FinanceSettings = {
   weeklyEveryDays: 7,
   weeklyManualEnabledAmount: 0,
   weeklyManualEnabledAt: null,
+  weeklyLastRenewedAt: null,
+  weeklyLastRenewalAmount: 0,
+  weeklyRolloverMode: 'keep',
+  weeklyRolloverGoalId: undefined,
 };
 
 export async function getFinanceSettings(): Promise<FinanceSettings> {

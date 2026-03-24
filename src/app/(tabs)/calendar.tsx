@@ -95,7 +95,7 @@ async function openGoogleCalendarEvent(title: string, dateStr: string, details?:
 
 export default function CalendarScreen() {
   const theme = useTheme();
-  const { settings: appSettings } = useAppSettings();
+  const { settings: appSettings, update } = useAppSettings();
   const params = useLocalSearchParams<{ tab?: string }>();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
 
@@ -160,6 +160,8 @@ export default function CalendarScreen() {
   const [instImportant, setInstImportant] = useState(false);
   const [instCalendarExport, setInstCalendarExport] = useState(false);
 
+  const [importantHint, setImportantHint] = useState<string | null>(null);
+
   useFocusEffect(
     useCallback(() => {
       Promise.all([getDueDates(), getRecurringPayments(), getInstallments(), getCategories(), getPaymentMethods()]).then(
@@ -204,6 +206,7 @@ export default function CalendarScreen() {
       amount: item.amount,
       currency: item.currency,
       date: item.date,
+      important: item.important,
     }));
     const recItems = activeRecurring.map((item) => ({
       key: `rec-${item.id}`,
@@ -213,6 +216,7 @@ export default function CalendarScreen() {
       amount: item.amount,
       currency: item.currency,
       date: item.nextDate,
+      important: item.important,
     }));
     const instItems = activeInstallments.map((item) => ({
       key: `inst-${item.id}`,
@@ -222,6 +226,7 @@ export default function CalendarScreen() {
       amount: item.amount,
       currency: item.currency,
       date: item.nextDate,
+      important: item.important,
     }));
     return [...dueItems, ...recItems, ...instItems].sort((a, b) => a.date.localeCompare(b.date));
   }, [activeDueDates, activeInstallments, activeRecurring]);
@@ -281,6 +286,22 @@ export default function CalendarScreen() {
 
     setNewOption('');
     setAddingOption(false);
+    setImportantHint(null);
+  };
+
+  const handleImportantToggle = async (value: boolean, setValue: (next: boolean) => void, clearExport: () => void) => {
+    setValue(value);
+    if (!value) {
+      clearExport();
+      return;
+    }
+    if (!appSettings.notifications.importantHintShown) {
+      const message = appSettings.notifications.importantEnabled
+        ? 'Notificaciones activas para este pago importante.'
+        : 'Marcado como importante. Activá “Importantes” en Notificaciones para recibir recordatorios.';
+      setImportantHint(message);
+      await update({ notifications: { importantHintShown: true } });
+    }
   };
 
   const handleSave = async () => {
@@ -603,7 +624,10 @@ export default function CalendarScreen() {
                       pressed && isJumpable ? styles.pressed : null,
                     ]}>
                     <View style={styles.itemInfo}>
-                      <ThemedText type="smallBold">{item.name}</ThemedText>
+                      <ThemedText type="smallBold">
+                        {item.name}
+                        {item.important ? ' ★' : ''}
+                      </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
                         {dateLabel}: {formatShortDate(item.date)} · {typeLabel}
                       </ThemedText>
@@ -670,7 +694,10 @@ export default function CalendarScreen() {
                 return (
                   <View key={item.id} style={styles.rowBetween}>
                     <View style={styles.itemInfo}>
-                      <ThemedText type="smallBold">{item.name}</ThemedText>
+                      <ThemedText type="smallBold">
+                        {item.name}
+                        {item.important ? ' ★' : ''}
+                      </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
                         {freqLabel} · {durationLabel}
                       </ThemedText>
@@ -747,7 +774,10 @@ export default function CalendarScreen() {
               {sortedInstallments.map((item) => (
                 <View key={item.id} style={styles.rowBetween}>
                   <View style={styles.itemInfo}>
-                    <ThemedText type="smallBold">{item.name}</ThemedText>
+                    <ThemedText type="smallBold">
+                      {item.name}
+                      {item.important ? ' ★' : ''}
+                    </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
                       Cuota actual: {item.current}/{item.total} · Próxima cuota: {formatShortDate(item.nextDate)}
                     </ThemedText>
@@ -902,10 +932,9 @@ export default function CalendarScreen() {
                   </ThemedText>
                   <Switch
                     value={dueImportant}
-                    onValueChange={(value) => {
-                      setDueImportant(value);
-                      if (!value) setDueCalendarExport(false);
-                    }}
+                    onValueChange={(value) =>
+                      handleImportantToggle(value, setDueImportant, () => setDueCalendarExport(false))
+                    }
                     trackColor={{ false: theme.border, true: theme.brandSoft }}
                     thumbColor={dueImportant ? theme.brand : theme.onBrand}
                   />
@@ -922,6 +951,11 @@ export default function CalendarScreen() {
                       thumbColor={dueCalendarExport ? theme.brand : theme.onBrand}
                     />
                   </View>
+                ) : null}
+                {importantHint ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {importantHint}
+                  </ThemedText>
                 ) : null}
               </View>
             ) : null}
@@ -1100,10 +1134,9 @@ export default function CalendarScreen() {
                   </ThemedText>
                   <Switch
                     value={recImportant}
-                    onValueChange={(value) => {
-                      setRecImportant(value);
-                      if (!value) setRecCalendarExport(false);
-                    }}
+                    onValueChange={(value) =>
+                      handleImportantToggle(value, setRecImportant, () => setRecCalendarExport(false))
+                    }
                     trackColor={{ false: theme.border, true: theme.brandSoft }}
                     thumbColor={recImportant ? theme.brand : theme.onBrand}
                   />
@@ -1120,6 +1153,11 @@ export default function CalendarScreen() {
                       thumbColor={recCalendarExport ? theme.brand : theme.onBrand}
                     />
                   </View>
+                ) : null}
+                {importantHint ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {importantHint}
+                  </ThemedText>
                 ) : null}
               </View>
             ) : null}
@@ -1225,10 +1263,9 @@ export default function CalendarScreen() {
                   </ThemedText>
                   <Switch
                     value={instImportant}
-                    onValueChange={(value) => {
-                      setInstImportant(value);
-                      if (!value) setInstCalendarExport(false);
-                    }}
+                    onValueChange={(value) =>
+                      handleImportantToggle(value, setInstImportant, () => setInstCalendarExport(false))
+                    }
                     trackColor={{ false: theme.border, true: theme.brandSoft }}
                     thumbColor={instImportant ? theme.brand : theme.onBrand}
                   />
@@ -1245,6 +1282,11 @@ export default function CalendarScreen() {
                       thumbColor={instCalendarExport ? theme.brand : theme.onBrand}
                     />
                   </View>
+                ) : null}
+                {importantHint ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {importantHint}
+                  </ThemedText>
                 ) : null}
               </View>
             ) : null}

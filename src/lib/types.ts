@@ -1,4 +1,7 @@
-﻿export type TransactionType = 'income' | 'expense';
+import { CurrencyCode } from '@/lib/app-settings';
+
+export type TransactionType = 'income' | 'expense';
+export type TransactionSystem = 'weekly-renewal' | 'weekly-rollover';
 
 export type Transaction = {
   id: string;
@@ -9,6 +12,7 @@ export type Transaction = {
   date: string; // ISO date YYYY-MM-DD
   method: string;
   note?: string;
+  weekly?: boolean;
+  system?: TransactionSystem;
   createdAt: string; // ISO timestamp
 };
-import { CurrencyCode } from '@/lib/app-settings';

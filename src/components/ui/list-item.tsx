@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -8,11 +8,13 @@ type ListItemProps = {
   title: string;
   subtitle?: string;
   trailing?: string;
+  onPress?: () => void;
 };
 
-export function ListItem({ title, subtitle, trailing }: ListItemProps) {
+export function ListItem({ title, subtitle, trailing, onPress }: ListItemProps) {
+  const Container = onPress ? Pressable : View;
   return (
-    <View style={styles.container}>
+    <Container style={styles.container} onPress={onPress}>
       <View style={styles.texts}>
         <ThemedText>{title}</ThemedText>
         {subtitle && (
@@ -26,7 +28,7 @@ export function ListItem({ title, subtitle, trailing }: ListItemProps) {
           {trailing}
         </ThemedText>
       )}
-    </View>
+    </Container>
   );
 }
 

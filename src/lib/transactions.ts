@@ -2,7 +2,8 @@ import { apiRequest } from '@/lib/api';
 import { getCachedAuthState, loadAuthState } from '@/lib/auth';
 import { getCachedAppSettings } from '@/lib/app-settings';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
-import { Transaction } from '@/lib/types';
+import { Transaction, TransactionSystem } from '@/lib/types';
+import { applyTransactionMeta, removeTransactionMeta, setTransactionMeta, TransactionMeta } from '@/lib/transaction-meta';
 
 async function getAuthToken() {
   const cached = getCachedAuthState();
@@ -21,11 +22,20 @@ function normalizeTransactions(items: Transaction[]) {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+function splitMeta(payload: Partial<Transaction>) {
+  const { weekly, system, ...rest } = payload;
+  const meta: TransactionMeta = {};
+  if (weekly !== undefined) meta.weekly = weekly;
+  if (system !== undefined) meta.system = system as TransactionSystem;
+  return { meta, body: rest };
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    return normalizeTransactions(items);
+    const merged = await applyTransactionMeta(items);
+    return normalizeTransactions(merged);
   }
 
   try {
@@ -35,19 +45,24 @@ export async function getTransactions(): Promise<Transaction[]> {
     });
 
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, items);
-    return normalizeTransactions(items);
+    const merged = await applyTransactionMeta(items);
+    return normalizeTransactions(merged);
   } catch {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    return normalizeTransactions(items);
+    const merged = await applyTransactionMeta(items);
+    return normalizeTransactions(merged);
   }
 }
 
-export async function addTransaction(item: Transaction): Promise<Transaction[]> {
+export async function addTransaction(item: Transaction, meta?: TransactionMeta): Promise<Transaction[]> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getTransactions();
     const next = [item, ...items];
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    if (meta) {
+      await setTransactionMeta(item.id, meta);
+    }
     return normalizeTransactions(next);
   }
 
@@ -66,36 +81,52 @@ export async function addTransaction(item: Transaction): Promise<Transaction[]> 
       },
     });
 
+    if (meta) {
+      await setTransactionMeta(created.id, meta);
+    }
     const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = [created, ...cached];
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
-    return normalizeTransactions(next);
+    const merged = await applyTransactionMeta(next);
+    return normalizeTransactions(merged);
   } catch {
     const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = [item, ...cached];
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
-    return normalizeTransactions(next);
+    if (meta) {
+      await setTransactionMeta(item.id, meta);
+    }
+    const merged = await applyTransactionMeta(next);
+    return normalizeTransactions(merged);
   }
 }
 
 export async function updateTransaction(id: string, payload: Partial<Transaction>): Promise<Transaction | null> {
   const token = await getAuthToken();
+  const { meta, body } = splitMeta(payload);
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = items.map((tx) => (tx.id === id ? { ...tx, ...payload } : tx));
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    if (meta.weekly !== undefined || meta.system !== undefined) {
+      await setTransactionMeta(id, meta);
+    }
     return next.find((tx) => tx.id === id) ?? null;
   }
 
   const updated = await apiRequest<Transaction>(`/transactions/${id}`, {
     method: 'PUT',
     token,
-    body: payload,
+    body,
   });
+  if (meta.weekly !== undefined || meta.system !== undefined) {
+    await setTransactionMeta(id, meta);
+  }
   const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
   const next = items.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx));
   await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
-  return updated;
+  const merged = await applyTransactionMeta([updated]);
+  return merged[0] ?? updated;
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
@@ -104,6 +135,7 @@ export async function deleteTransaction(id: string): Promise<void> {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await removeTransactionMeta(id);
     return;
   }
 
@@ -115,6 +147,7 @@ export async function deleteTransaction(id: string): Promise<void> {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await removeTransactionMeta(id);
   } catch {
     return;
   }

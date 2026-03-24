@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   appSettings: 'instant:app_settings',
   auth: 'instant:auth',
   biometricToken: 'instant:biometric_token',
+  transactionMeta: 'instant:transaction_meta',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {

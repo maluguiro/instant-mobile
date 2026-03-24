@@ -1,6 +1,6 @@
 ﻿import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -55,6 +55,7 @@ export default function AddTransactionScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [useWeekly, setUseWeekly] = useState(false);
   const theme = useTheme();
   const { settings: appSettings } = useAppSettings();
   const [currency, setCurrency] = useState(appSettings.currency);
@@ -102,6 +103,12 @@ export default function AddTransactionScreen() {
       setUseCustomCategory(false);
     }
   }, [type, selectedCategory]);
+
+  useEffect(() => {
+    if (type === 'income') {
+      setUseWeekly(false);
+    }
+  }, [type]);
 
   const handleDateSelect = (option: DateOption) => {
     setDateOption(option);
@@ -169,10 +176,11 @@ export default function AddTransactionScreen() {
       date: toISODate(selectedDate),
       method,
       note: note.trim() ? note.trim() : undefined,
+      weekly: type === 'expense' ? useWeekly : false,
       createdAt: now,
     };
 
-    await addStoredTransaction(transaction);
+    await addStoredTransaction(transaction, { weekly: type === 'expense' ? useWeekly : false });
     setError('');
     router.back();
   };
@@ -346,6 +354,26 @@ export default function AddTransactionScreen() {
         ) : null}
       </Card>
 
+      {type === 'expense' ? (
+        <Card variant="soft">
+          <SectionHeader title="Disponible semanal" />
+          <View style={styles.toggleRow}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Usar disponible semanal
+            </ThemedText>
+            <Switch
+              value={useWeekly}
+              onValueChange={setUseWeekly}
+              trackColor={{ false: theme.border, true: theme.brandSoft }}
+              thumbColor={useWeekly ? theme.brand : theme.onBrand}
+            />
+          </View>
+          <ThemedText type="small" themeColor="textSecondary">
+            Este gasto se descuenta de la bolsa semanal y no del mensual.
+          </ThemedText>
+        </Card>
+      ) : null}
+
       <Card>
         <SectionHeader title="Nota (opcional)" />
         <TextInput
@@ -433,6 +461,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.one,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   input: {
     marginTop: Spacing.two,

@@ -24,14 +24,13 @@ import {
   calculateTotals,
   filterByCurrency,
   filterByMonth,
-  filterByWeek,
   formatCurrency,
   hasOtherCurrencies,
-  getWeeklyPlanAmount,
-  isSavingsCategory,
+  startOfWeek,
   toISODate,
 } from '@/lib/finance';
 import { defaultFinanceSettings, SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
+import { ensureWeeklyRenewal } from '@/lib/weekly-renewal';
 import {
   addSavingsGoal,
   contributeToGoal,
@@ -150,6 +149,8 @@ export default function BudgetScreen() {
   const [weeklyCustomDay, setWeeklyCustomDay] = useState(settings.weeklyCustomDay);
   const [weeklyEveryDays, setWeeklyEveryDays] = useState(String(settings.weeklyEveryDays));
   const [weeklyManualAmount, setWeeklyManualAmount] = useState('');
+  const [weeklyRolloverMode, setWeeklyRolloverMode] = useState(settings.weeklyRolloverMode);
+  const [weeklyRolloverGoalId, setWeeklyRolloverGoalId] = useState(settings.weeklyRolloverGoalId ?? '');
 
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [goalTitle, setGoalTitle] = useState('');
@@ -178,10 +179,20 @@ export default function BudgetScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refresh();
-      refreshTransactions();
-      getSavingsGoals().then(setGoals);
-    }, [refresh, refreshTransactions])
+      let active = true;
+      const run = async () => {
+        refresh();
+        await refreshTransactions();
+        await ensureWeeklyRenewal(null, appSettings.currency);
+        await refreshTransactions();
+        const loadedGoals = await getSavingsGoals();
+        if (active) setGoals(loadedGoals);
+      };
+      run();
+      return () => {
+        active = false;
+      };
+    }, [refresh, refreshTransactions, appSettings.currency])
   );
 
   useEffect(() => {
@@ -198,6 +209,8 @@ export default function BudgetScreen() {
     setWeeklyRenewal(settings.weeklyRenewal);
     setWeeklyCustomDay(settings.weeklyCustomDay);
     setWeeklyEveryDays(String(settings.weeklyEveryDays));
+    setWeeklyRolloverMode(settings.weeklyRolloverMode);
+    setWeeklyRolloverGoalId(settings.weeklyRolloverGoalId ?? '');
   }, [settings]);
 
   useEffect(() => {
@@ -230,14 +243,16 @@ export default function BudgetScreen() {
     () => filterByCurrency(monthTransactions, appCurrency),
     [monthTransactions, appCurrency]
   );
-  const weekTransactions = useMemo(
-    () => filterByWeek(transactions, new Date()),
-    [transactions]
+  const currencyTransactions = useMemo(
+    () => filterByCurrency(transactions, appCurrency),
+    [transactions, appCurrency]
   );
-  const weekCurrencyTransactions = useMemo(
-    () => filterByCurrency(weekTransactions, appCurrency),
-    [weekTransactions, appCurrency]
-  );
+  const weeklyCycleStart = useMemo(() => {
+    if (settings.weeklyLastRenewedAt) {
+      return settings.weeklyLastRenewedAt.slice(0, 10);
+    }
+    return toISODate(startOfWeek(new Date()));
+  }, [settings.weeklyLastRenewedAt]);
   const hasOtherCurrencyTransactions = useMemo(
     () => hasOtherCurrencies(monthTransactions, appCurrency),
     [monthTransactions, appCurrency]
@@ -256,16 +271,19 @@ export default function BudgetScreen() {
     if (settings.weeklyMode === 'manual') {
       return Math.max(settings.weeklyManualEnabledAmount, 0);
     }
-    return getWeeklyPlanAmount(settings, monthAvailable.available);
-  }, [settings, monthAvailable.available]);
+    return currencyTransactions
+      .filter((tx) => tx.system === 'weekly-renewal' && tx.date >= weeklyCycleStart)
+      .reduce((acc, tx) => acc + tx.amount, 0);
+  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, currencyTransactions, weeklyCycleStart]);
 
   const weeklyUsed = useMemo(
     () =>
-      weekCurrencyTransactions.reduce((acc, tx) => {
-        if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
+      currencyTransactions.reduce((acc, tx) => {
+        if (!tx.weekly || tx.type !== 'expense') return acc;
+        if (tx.date < weeklyCycleStart) return acc;
         return acc + tx.amount;
       }, 0),
-    [weekCurrencyTransactions]
+    [currencyTransactions, weeklyCycleStart]
   );
 
   const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
@@ -403,6 +421,8 @@ export default function BudgetScreen() {
       weeklyRenewal,
       weeklyCustomDay,
       weeklyEveryDays: weeklyEvery,
+      weeklyRolloverMode,
+      weeklyRolloverGoalId: weeklyRolloverMode === 'goal' ? weeklyRolloverGoalId || undefined : undefined,
     });
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -931,6 +951,50 @@ export default function BudgetScreen() {
               )}
             </Card>
 
+            <Card variant="soft" style={styles.innerCard}>
+              <SectionHeader title="Sobrante semanal" />
+              <ThemedText type="small" themeColor="textSecondary">
+                Qué hacer con lo que sobra al cerrar la semana.
+              </ThemedText>
+              <View style={styles.optionRow}>
+                <SelectableOption
+                  label="Mantener en semanal"
+                  selected={weeklyRolloverMode === 'keep'}
+                  onPress={() => setWeeklyRolloverMode('keep')}
+                />
+                <SelectableOption
+                  label="Pasar a ahorros"
+                  selected={weeklyRolloverMode === 'savings'}
+                  onPress={() => setWeeklyRolloverMode('savings')}
+                />
+                <SelectableOption
+                  label="Pasar a una meta"
+                  selected={weeklyRolloverMode === 'goal'}
+                  onPress={() => setWeeklyRolloverMode('goal')}
+                />
+              </View>
+              {weeklyRolloverMode === 'goal' ? (
+                <View style={styles.goalSelectRow}>
+                  {safeGoals.filter((goal) => goal.currency === appCurrency).length === 0 ? (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      No hay metas en {appCurrency}. Creá una meta para usar esta opción.
+                    </ThemedText>
+                  ) : (
+                    safeGoals
+                      .filter((goal) => goal.currency === appCurrency)
+                      .map((goal) => (
+                        <SelectableOption
+                          key={goal.id}
+                          label={goal.title}
+                          selected={weeklyRolloverGoalId === goal.id}
+                          onPress={() => setWeeklyRolloverGoalId(goal.id)}
+                        />
+                      ))
+                  )}
+                </View>
+              ) : null}
+            </Card>
+
             <Card variant="soft" style={styles.summaryCard}>
               <ThemedText type="small" themeColor="textSecondary">
                 Resumen actual
@@ -1448,6 +1512,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.one,
+  },
+  goalSelectRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
   progressHeader: {
     flexDirection: 'row',

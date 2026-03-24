@@ -25,13 +25,13 @@ import {
   calculateTotals,
   filterByCurrency,
   filterByMonth,
-  filterByWeek,
   formatCurrency,
   formatShortDate,
   getTransactionCurrency,
-  getWeeklyPlanAmount,
-  isSavingsCategory,
+  startOfWeek,
+  toISODate,
 } from '@/lib/finance';
+import { ensureWeeklyRenewal } from '@/lib/weekly-renewal';
 import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 
 export default function HomeScreen() {
@@ -52,17 +52,26 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refresh();
-      refreshSettings();
-      getSavingsGoals().then(setGoals);
-      Promise.all([getDueDates(), getRecurringPayments(), getInstallments()]).then(
-        ([due, rec, inst]) => {
+      let active = true;
+      const run = async () => {
+        await refresh();
+        await refreshSettings();
+        await ensureWeeklyRenewal(null, appSettings.currency);
+        await refresh();
+        const loadedGoals = await getSavingsGoals();
+        if (active) setGoals(loadedGoals);
+        const [due, rec, inst] = await Promise.all([getDueDates(), getRecurringPayments(), getInstallments()]);
+        if (active) {
           setDueDates(due);
           setRecurring(rec);
           setInstallments(inst);
         }
-      );
-    }, [refresh, refreshSettings])
+      };
+      run();
+      return () => {
+        active = false;
+      };
+    }, [refresh, refreshSettings, appSettings.currency])
   );
 
   const monthData = useMemo(() => {
@@ -123,26 +132,33 @@ export default function HomeScreen() {
     }
   }, [currencyIndex, carouselWidth, summaryWidth]);
 
-  const weekTransactions = useMemo(
-    () => filterByWeek(transactions, new Date()),
-    [transactions]
+  const weeklyCycleStart = useMemo(() => {
+    if (settings.weeklyLastRenewedAt) {
+      return settings.weeklyLastRenewedAt.slice(0, 10);
+    }
+    return toISODate(startOfWeek(new Date()));
+  }, [settings.weeklyLastRenewedAt]);
+  const currencyTransactions = useMemo(
+    () => filterByCurrency(transactions, appSettings.currency),
+    [transactions, appSettings.currency]
   );
-  const weekCurrencyTransactions = useMemo(
-    () => filterByCurrency(weekTransactions, appSettings.currency),
-    [weekTransactions, appSettings.currency]
-  );
-  const weeklyEnabled = useMemo(
-    () => getWeeklyPlanAmount(settings, primaryMonth.availability.available),
-    [settings, primaryMonth.availability.available]
-  );
+  const weeklyEnabled = useMemo(() => {
+    if (settings.weeklyMode === 'manual') {
+      return Math.max(settings.weeklyManualEnabledAmount, 0);
+    }
+    return currencyTransactions
+      .filter((tx) => tx.system === 'weekly-renewal' && tx.date >= weeklyCycleStart)
+      .reduce((acc, tx) => acc + tx.amount, 0);
+  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, currencyTransactions, weeklyCycleStart]);
 
   const weeklyUsed = useMemo(
     () =>
-      weekCurrencyTransactions.reduce((acc, tx) => {
-        if (tx.type !== 'expense' || isSavingsCategory(tx.category)) return acc;
+      currencyTransactions.reduce((acc, tx) => {
+        if (!tx.weekly || tx.type !== 'expense') return acc;
+        if (tx.date < weeklyCycleStart) return acc;
         return acc + tx.amount;
       }, 0),
-    [weekCurrencyTransactions]
+    [currencyTransactions, weeklyCycleStart]
   );
 
   const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
@@ -417,6 +433,7 @@ export default function HomeScreen() {
                 title={movement.category}
                 subtitle={`${movement.method} · ${formatShortDate(movement.date)}`}
                 trailing={`${movement.type === 'income' ? '+' : '-'}${formatCurrency(movement.amount, movement.currency)}`}
+                onPress={() => router.push({ pathname: '/movements', params: { edit: movement.id } })}
               />
             ))
           )}
