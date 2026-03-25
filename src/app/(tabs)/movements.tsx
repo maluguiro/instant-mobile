@@ -214,6 +214,7 @@ export default function MovementsScreen() {
   };
 
   const openEdit = (tx: Transaction) => {
+    console.log('[movements][openEdit]', { id: tx.id, system: tx.system, currency: tx.currency, createdAt: tx.createdAt });
     setEditError('');
     setEditingTx(tx);
     setEditType(tx.type);
@@ -271,13 +272,16 @@ export default function MovementsScreen() {
 
   const handleDelete = async () => {
     if (!editingTx) return;
+    console.log('[movements][delete][start]', { id: editingTx.id, system: editingTx.system, createdAt: editingTx.createdAt });
     Alert.alert('Eliminar movimiento', '¿Querés eliminar este movimiento?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
+          console.log('[movements][delete][confirm]', { id: editingTx.id });
           const ok = await remove(editingTx.id);
+          console.log('[movements][delete][result]', { id: editingTx.id, ok });
           if (!ok) {
             Alert.alert('No pudimos eliminar', 'No se pudo borrar el movimiento. Revisá tu conexión.');
             return;
@@ -415,6 +419,11 @@ export default function MovementsScreen() {
                         <ThemedText type="small" themeColor="textSecondary">
                           {item.method} · {formatShortDate(item.date)} · {formatTime(item.createdAt)}
                         </ThemedText>
+                        {item.system === 'savings-renewal' ? (
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Ahorro programado
+                          </ThemedText>
+                        ) : null}
                       </View>
                       <View style={styles.itemAmount}>
                         <ThemedText

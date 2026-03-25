@@ -25,13 +25,15 @@ import {
   filterByCurrency,
   filterByMonth,
   formatCurrency,
+  getTransactionCurrency,
   hasOtherCurrencies,
   startOfWeek,
+  toMonthKey,
   toISODate,
 } from '@/lib/finance';
 import { defaultFinanceSettings, SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
 import { ensureWeeklyRenewal } from '@/lib/weekly-renewal';
-import { deleteTransaction } from '@/lib/transactions';
+import { addTransaction, deleteTransaction, getTransactions } from '@/lib/transactions';
 import {
   addSavingsGoal,
   contributeToGoal,
@@ -244,6 +246,10 @@ export default function BudgetScreen() {
     () => filterByCurrency(monthTransactions, appCurrency),
     [monthTransactions, appCurrency]
   );
+  const savingsCurrencyTransactions = useMemo(
+    () => filterByCurrency(monthTransactions, settings.savingsCurrency),
+    [monthTransactions, settings.savingsCurrency]
+  );
   const currencyTransactions = useMemo(
     () => filterByCurrency(transactions, appCurrency),
     [transactions, appCurrency]
@@ -281,8 +287,8 @@ export default function BudgetScreen() {
     [monthCurrencyTransactions, appCurrency]
   );
   const monthAvailable = useMemo(
-    () => calculateAvailable(totals, settings, appCurrency),
-    [totals, settings, appCurrency]
+    () => calculateAvailable(totals, settings, appCurrency, monthCurrencyTransactions, new Date()),
+    [totals, settings, appCurrency, monthCurrencyTransactions]
   );
 
   const weeklyEnabled = useMemo(() => {
@@ -303,6 +309,15 @@ export default function BudgetScreen() {
   );
 
   const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
+
+  const savingsScheduledAmount = useMemo(() => {
+    if (settings.savingsMode === 'manual') return 0;
+    if (settings.savingsMode === 'percent') {
+      const totalsForSavings = calculateTotals(savingsCurrencyTransactions, settings.savingsCurrency);
+      return Math.max(0, (totalsForSavings.income * settings.savingsPercent) / 100);
+    }
+    return Math.max(settings.savingsFixed, 0);
+  }, [settings.savingsMode, settings.savingsPercent, settings.savingsFixed, savingsCurrencyTransactions, settings.savingsCurrency]);
 
   const savingsSuggested = useMemo(() => {
     if (savingsMode === 'percent') {
@@ -421,6 +436,18 @@ export default function BudgetScreen() {
     const weekly = Math.max(parseAmount(weeklyAmount), 0);
     const everyDays = Math.max(parseAmount(savingsEveryDays), 1);
     const weeklyEvery = Math.max(parseAmount(weeklyEveryDays), 1);
+    const nextSavingsMonthDay = Math.max(parseAmount(savingsMonthDay), 1);
+    const shouldResetSavingsSkip =
+      settings.savingsMode !== savingsMode ||
+      settings.savingsFixed !== fixed ||
+      settings.savingsPercent !== percent ||
+      settings.savingsFrequency !== savingsFrequency ||
+      settings.savingsEveryDays !== everyDays ||
+      settings.savingsMonthDay !== nextSavingsMonthDay ||
+      settings.savingsWeekday !== savingsWeekday ||
+      settings.savingsCurrency !== savingsCurrency ||
+      savingsFrequency !== 'monthly' ||
+      savingsMode === 'manual';
     const shouldResetWeekly =
       settings.weeklyAmount !== weekly ||
       settings.weeklyMode !== weeklyMode ||
@@ -430,16 +457,17 @@ export default function BudgetScreen() {
       weeklyMode === 'manual' ||
       weekly <= 0;
 
-    await update({
+    const nextSettings = {
       ...settings,
       savingsMode,
       savingsFixed: fixed,
       savingsPercent: percent,
       savingsFrequency,
       savingsEveryDays: everyDays,
-      savingsMonthDay: Math.max(parseAmount(savingsMonthDay), 1),
+      savingsMonthDay: nextSavingsMonthDay,
       savingsWeekday,
       savingsCurrency,
+      savingsSkipMonth: shouldResetSavingsSkip ? null : settings.savingsSkipMonth,
       weeklyMode,
       weeklyAmount: weekly,
       weeklyRenewal,
@@ -449,10 +477,84 @@ export default function BudgetScreen() {
       weeklyRolloverGoalId: weeklyRolloverMode === 'goal' ? weeklyRolloverGoalId || undefined : undefined,
       weeklyLastRenewedAt: shouldResetWeekly ? null : settings.weeklyLastRenewedAt,
       weeklyLastRenewalAmount: shouldResetWeekly ? 0 : settings.weeklyLastRenewalAmount,
-    });
+    };
+
+    await update(nextSettings);
 
     await ensureWeeklyRenewal(null, appCurrency);
     await refreshTransactions();
+    const latestTransactions = await getTransactions();
+
+    const monthKey = toMonthKey(new Date());
+    const dueDay = Math.max(nextSavingsMonthDay, 1);
+    const today = new Date();
+    const savingsCurrencyTx = filterByCurrency(monthTransactions, savingsCurrency);
+    const totalsForSavings = calculateTotals(savingsCurrencyTx, savingsCurrency);
+    const savingsScheduledAmountNext =
+      savingsMode === 'manual'
+        ? 0
+        : savingsMode === 'percent'
+          ? Math.max(0, (totalsForSavings.income * percent) / 100)
+          : Math.max(fixed, 0);
+    const hasSavingsRenewal = transactions.some((tx) => {
+      if (tx.system !== 'savings-renewal') return false;
+      if (getTransactionCurrency(tx, savingsCurrency) !== savingsCurrency) return false;
+      return tx.date.startsWith(monthKey);
+    });
+    const shouldPromptSavings =
+      savingsMode !== 'manual' &&
+      savingsFrequency === 'monthly' &&
+      savingsScheduledAmountNext > 0 &&
+      today.getDate() >= dueDay &&
+      nextSettings.savingsSkipMonth !== monthKey &&
+      !hasSavingsRenewal;
+
+    const savingsRenewals = latestTransactions
+      .filter((tx) => {
+        if (tx.system !== 'savings-renewal') return false;
+        if (getTransactionCurrency(tx, savingsCurrency) !== savingsCurrency) return false;
+        return tx.date.startsWith(monthKey);
+      })
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+    if (savingsRenewals.length > 1) {
+      await Promise.all(savingsRenewals.slice(1).map((tx) => deleteTransaction(tx.id)));
+    }
+
+    if (shouldPromptSavings) {
+      const message =
+        `El ahorro estaba programado para el día ${dueDay} de este mes.\n` +
+        `¿Querés reservarlo ahora o esperar al mes próximo?`;
+      Alert.alert('Ahorro programado', message, [
+        {
+          text: 'Esperar al mes próximo',
+          style: 'cancel',
+          onPress: async () => {
+            await update({ ...nextSettings, savingsSkipMonth: monthKey });
+          },
+        },
+        {
+          text: 'Reservar ahora',
+          onPress: async () => {
+            const now = new Date();
+            await addTransaction(
+              {
+                id: String(Date.now()),
+                type: 'expense',
+                amount: Math.round(savingsScheduledAmountNext),
+                currency: savingsCurrency,
+                category: 'Ahorro',
+                date: toISODate(now),
+                method: 'Ahorro programado',
+                note: 'Ahorro programado',
+                createdAt: now.toISOString(),
+              },
+              { system: 'savings-renewal' }
+            );
+            await update({ ...nextSettings, savingsSkipMonth: null });
+          },
+        },
+      ]);
+    }
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSavePlanDone(true);

@@ -53,6 +53,7 @@ export async function getTransactions(): Promise<Transaction[]> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    console.log('[transactions][get][local]', { count: items.length });
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
@@ -63,11 +64,15 @@ export async function getTransactions(): Promise<Transaction[]> {
       token,
     });
 
+    console.log('[transactions][get][api]', { count: items.length });
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, items);
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    console.log('[transactions][get][api-error]', { message });
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    console.log('[transactions][get][local-fallback]', { count: items.length });
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
@@ -158,6 +163,7 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    console.log('[transactions][delete][local-only]', { id, count: items.length });
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
     await removeTransactionMeta(id);
@@ -166,17 +172,30 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   }
 
   try {
+    console.log('[transactions][delete][api-start]', { id });
     await apiRequest(`/transactions/${id}`, {
       method: 'DELETE',
       token,
     });
+    console.log('[transactions][delete][api-ok]', { id });
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
     await removeTransactionMeta(id);
     notifyTransactionsChanged();
     return true;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    console.log('[transactions][delete][api-error]', { id, message });
+    if (message.includes('Movimiento no encontrado') || message.includes('No pudimos conectar')) {
+      const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+      const next = items.filter((tx) => tx.id !== id);
+      console.log('[transactions][delete][local-fallback]', { id, before: items.length, after: next.length });
+      await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+      await removeTransactionMeta(id);
+      notifyTransactionsChanged();
+      return true;
+    }
     return false;
   }
 }

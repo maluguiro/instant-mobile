@@ -15,10 +15,13 @@ export function useTransactions() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    console.log('[transactions][refresh][start]');
     try {
       const items = await getTransactions();
       setTransactions(items);
+      console.log('[transactions][refresh][ok]', { count: items.length });
     } catch {
+      console.log('[transactions][refresh][error]');
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -49,11 +52,14 @@ export function useTransactions() {
   }, []);
 
   const remove = useCallback(async (id: string) => {
+    console.log('[transactions][remove][start]', { id, count: transactions.length });
     const ok = await deleteTransaction(id);
+    console.log('[transactions][remove][afterDelete]', { id, ok });
     if (!ok) return false;
     setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+    console.log('[transactions][remove][stateUpdated]', { id });
     return true;
-  }, []);
+  }, [transactions.length]);
 
   return {
     transactions,

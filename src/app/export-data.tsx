@@ -134,10 +134,10 @@ export default function ExportDataScreen() {
   const availability = useMemo(
     () =>
       settings
-        ? calculateAvailable(totals, settings, appSettings.currency)
+        ? calculateAvailable(totals, settings, appSettings.currency, filtered, new Date())
         : { savingsTotal: 0, available: 0, savingsReserved: 0 },
-    [totals, settings, appSettings.currency]
-  );
+      [totals, settings, appSettings.currency, filtered]
+    );
 
   const summaryByCategory = useMemo(
     () =>

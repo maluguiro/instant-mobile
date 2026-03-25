@@ -15,6 +15,7 @@ export type FinanceSettings = {
   savingsMonthDay: number;
   savingsWeekday: number; // 0-6, Monday = 1
   savingsCurrency: CurrencyCode;
+  savingsSkipMonth: string | null;
   weeklyMode: WeeklyMode;
   weeklyAmount: number;
   weeklyRenewal: WeeklyRenewalMode;
@@ -37,6 +38,7 @@ export const defaultFinanceSettings: FinanceSettings = {
   savingsMonthDay: 1,
   savingsWeekday: 1,
   savingsCurrency: defaultAppSettings.currency,
+  savingsSkipMonth: null,
   weeklyMode: 'fixed',
   weeklyAmount: 0,
   weeklyRenewal: 'monday',

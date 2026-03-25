@@ -94,7 +94,7 @@ export default function HomeScreen() {
     return normalizedCurrencies.map((currency) => {
       const currencyTx = filterByCurrency(monthTx, currency);
       const totals = calculateTotals(currencyTx, currency);
-      const availability = calculateAvailable(totals, settings, currency);
+        const availability = calculateAvailable(totals, settings, currency, currencyTx, new Date());
 
       return {
         currency,

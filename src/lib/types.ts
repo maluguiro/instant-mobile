@@ -1,7 +1,7 @@
 import { CurrencyCode } from '@/lib/app-settings';
 
 export type TransactionType = 'income' | 'expense';
-export type TransactionSystem = 'weekly-renewal' | 'weekly-rollover';
+export type TransactionSystem = 'weekly-renewal' | 'weekly-rollover' | 'savings-renewal';
 
 export type Transaction = {
   id: string;

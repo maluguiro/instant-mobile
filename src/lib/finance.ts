@@ -23,6 +23,12 @@ export function toISODate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export function toMonthKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export function formatCurrency(value: number, currency?: string): string {
   const resolvedCurrency = currency ?? getCachedAppSettings().currency ?? 'ARS';
   try {
@@ -91,6 +97,19 @@ export function isSavingsCategory(category: string): boolean {
   return category.trim().toLowerCase() === 'ahorro';
 }
 
+function hasSavingsRenewalForMonth(
+  transactions: Transaction[],
+  currency: CurrencyCode | undefined,
+  referenceDate: Date
+): boolean {
+  const monthKey = toMonthKey(referenceDate);
+  return transactions.some((tx) => {
+    if (currency && getTransactionCurrency(tx) !== currency) return false;
+    if (tx.system !== 'savings-renewal') return false;
+    return tx.date.startsWith(monthKey);
+  });
+}
+
 export function calculateTotals(transactions: Transaction[], currency?: CurrencyCode) {
   let income = 0;
   let expense = 0;
@@ -148,12 +167,27 @@ export function calculateSavingsReserved(
 export function calculateAvailable(
   totals: { income: number; expense: number; savingsManual: number },
   settings: FinanceSettings,
-  currency?: CurrencyCode
+  currency?: CurrencyCode,
+  transactions: Transaction[] = [],
+  referenceDate: Date = new Date()
 ) {
-  const savingsReserved =
+  let savingsReserved =
     currency && settings.savingsCurrency !== currency
       ? 0
       : calculateSavingsReserved(totals, settings);
+
+  if (settings.savingsFrequency === 'monthly' && settings.savingsMode !== 'manual') {
+    const monthKey = toMonthKey(referenceDate);
+    if (settings.savingsSkipMonth === monthKey) {
+      savingsReserved = 0;
+    } else if (referenceDate.getDate() < Math.max(settings.savingsMonthDay, 1)) {
+      savingsReserved = 0;
+    } else if (hasSavingsRenewalForMonth(transactions, settings.savingsCurrency, referenceDate)) {
+      savingsReserved = 0;
+    } else {
+      savingsReserved = 0;
+    }
+  }
   const savingsTotal = savingsReserved + totals.savingsManual;
   const available = totals.income - totals.expense - savingsTotal;
 
