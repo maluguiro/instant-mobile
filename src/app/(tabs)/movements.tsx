@@ -277,7 +277,11 @@ export default function MovementsScreen() {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          await remove(editingTx.id);
+          const ok = await remove(editingTx.id);
+          if (!ok) {
+            Alert.alert('No pudimos eliminar', 'No se pudo borrar el movimiento. Revisá tu conexión.');
+            return;
+          }
           setEditingTx(null);
         },
       },

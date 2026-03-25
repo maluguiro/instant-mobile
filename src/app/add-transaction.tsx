@@ -180,7 +180,7 @@ export default function AddTransactionScreen() {
       createdAt: now,
     };
 
-    await addStoredTransaction(transaction, { weekly: type === 'expense' ? useWeekly : false });
+    await addStoredTransaction(transaction);
     setError('');
     router.back();
   };

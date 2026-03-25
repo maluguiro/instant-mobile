@@ -27,7 +27,7 @@ export async function applyTransactionMeta(items: Transaction[]): Promise<Transa
   const meta = await getTransactionMetaMap();
   return items.map((item) => ({
     ...item,
-    weekly: meta[item.id]?.weekly ?? item.weekly,
+    weekly: item.weekly ?? meta[item.id]?.weekly,
     system: meta[item.id]?.system ?? item.system,
   }));
 }

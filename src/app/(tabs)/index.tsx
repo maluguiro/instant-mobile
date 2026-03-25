@@ -132,24 +132,40 @@ export default function HomeScreen() {
     }
   }, [currencyIndex, carouselWidth, summaryWidth]);
 
-  const weeklyCycleStart = useMemo(() => {
-    if (settings.weeklyLastRenewedAt) {
-      return settings.weeklyLastRenewedAt.slice(0, 10);
-    }
-    return toISODate(startOfWeek(new Date()));
-  }, [settings.weeklyLastRenewedAt]);
   const currencyTransactions = useMemo(
     () => filterByCurrency(transactions, appSettings.currency),
     [transactions, appSettings.currency]
   );
+
+  const latestWeeklyRenewal = useMemo(() => {
+    const candidates = currencyTransactions.filter(
+      (tx) => tx.system === 'weekly-renewal' || tx.category === 'Renovación semanal'
+    );
+    if (candidates.length === 0) return null;
+    return candidates.reduce((latest, current) => {
+      if (current.date > latest.date) return current;
+      if (current.date === latest.date && (current.createdAt ?? '') > (latest.createdAt ?? '')) {
+        return current;
+      }
+      return latest;
+    }, candidates[0]);
+  }, [currencyTransactions]);
+
+  const weeklyCycleStart = useMemo(() => {
+    if (latestWeeklyRenewal?.date) {
+      return latestWeeklyRenewal.date;
+    }
+    if (settings.weeklyLastRenewedAt) {
+      return settings.weeklyLastRenewedAt.slice(0, 10);
+    }
+    return toISODate(startOfWeek(new Date()));
+  }, [latestWeeklyRenewal, settings.weeklyLastRenewedAt]);
   const weeklyEnabled = useMemo(() => {
     if (settings.weeklyMode === 'manual') {
       return Math.max(settings.weeklyManualEnabledAmount, 0);
     }
-    return currencyTransactions
-      .filter((tx) => tx.system === 'weekly-renewal' && tx.date >= weeklyCycleStart)
-      .reduce((acc, tx) => acc + tx.amount, 0);
-  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, currencyTransactions, weeklyCycleStart]);
+    return latestWeeklyRenewal?.amount ?? 0;
+  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, latestWeeklyRenewal]);
 
   const weeklyUsed = useMemo(
     () =>
@@ -589,3 +605,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 });
+
+
+
+

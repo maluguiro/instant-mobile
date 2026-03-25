@@ -1,6 +1,12 @@
-﻿import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { addTransaction, deleteTransaction, getTransactions, updateTransaction } from '@/lib/transactions';
+import {
+  addTransaction,
+  deleteTransaction,
+  getTransactions,
+  subscribeTransactionsChanged,
+  updateTransaction,
+} from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 
 export function useTransactions() {
@@ -19,6 +25,13 @@ export function useTransactions() {
     }
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeTransactionsChanged(() => {
+      refresh();
+    });
+    return unsubscribe;
+  }, [refresh]);
+
   const add = useCallback(async (item: Transaction) => {
     try {
       const items = await addTransaction(item);
@@ -36,8 +49,10 @@ export function useTransactions() {
   }, []);
 
   const remove = useCallback(async (id: string) => {
-    await deleteTransaction(id);
+    const ok = await deleteTransaction(id);
+    if (!ok) return false;
     setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+    return true;
   }, []);
 
   return {

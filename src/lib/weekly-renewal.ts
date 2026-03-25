@@ -28,12 +28,23 @@ export async function ensureWeeklyRenewal(
   currency: string
 ): Promise<boolean> {
   const settings = await getFinanceSettings();
-  if (settings.weeklyMode !== 'fixed') return false;
+  const weeklyMode = settings.weeklyMode === 'auto' ? 'fixed' : settings.weeklyMode;
+  if (weeklyMode !== 'fixed') return false;
   if (settings.weeklyAmount <= 0) return false;
   if (settings.weeklyRenewal === 'manual') return false;
 
   const today = startOfDay(new Date());
   const lastRenewedAt = settings.weeklyLastRenewedAt ? startOfDay(new Date(settings.weeklyLastRenewedAt)) : null;
+
+  const baseTransactions = transactions ?? (await getTransactions());
+  const hasRenewalSince = (from: Date) => {
+    const fromISO = toISODate(from);
+    return baseTransactions.some(
+      (tx) =>
+        tx.date >= fromISO &&
+        (tx.system === 'weekly-renewal' || tx.category === 'Renovación semanal')
+    );
+  };
 
   let shouldRenew = false;
   if (!lastRenewedAt) {
@@ -48,9 +59,12 @@ export async function ensureWeeklyRenewal(
     shouldRenew = lastRenewedAt < lastMonday;
   }
 
+  if (!shouldRenew && lastRenewedAt && !hasRenewalSince(lastRenewedAt)) {
+    shouldRenew = true;
+  }
+
   if (!shouldRenew) return false;
 
-  const baseTransactions = transactions ?? (await getTransactions());
   let carryover = 0;
   if (lastRenewedAt && settings.weeklyLastRenewalAmount > 0) {
     const from = toISODate(lastRenewedAt);

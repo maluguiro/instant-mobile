@@ -33,6 +33,7 @@ model Transaction {
   date      DateTime
   method    String
   note      String?
+  weekly    Boolean         @default(false)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 }
