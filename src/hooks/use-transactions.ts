@@ -8,8 +8,10 @@ import {
   updateTransaction,
 } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
+import { useDuo } from '@/hooks/use-duo';
 
 export function useTransactions() {
+  const { state: duoState } = useDuo();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +33,10 @@ export function useTransactions() {
     });
     return unsubscribe;
   }, [refresh]);
+
+  useEffect(() => {
+    refresh();
+  }, [duoState.activeContext, duoState.duoId, refresh]);
 
   const add = useCallback(async (item: Transaction) => {
     try {

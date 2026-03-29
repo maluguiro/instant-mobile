@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '../services/prisma';
+import { resolveDuoScope } from '../services/duo-context';
 
 const transactionSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -18,18 +19,23 @@ const transactionSchema = z.object({
 export const transactionsRouter = Router();
 
 function getTransactionModel() {
-  const model = (prisma as unknown as { transaction?: typeof prisma.transaction; transactions?: typeof prisma.transaction }).transaction
-    ?? (prisma as unknown as { transactions?: typeof prisma.transaction }).transactions;
+  const model =
+    (prisma as unknown as { transaction?: typeof prisma.transaction; transactions?: typeof prisma.transaction })
+      .transaction ?? (prisma as unknown as { transactions?: typeof prisma.transaction }).transactions;
   if (!model) {
-    throw new Error('Prisma Client no tiene el modelo Transaction. Ejecutá `prisma generate`.');
+    throw new Error('Prisma Client no tiene el modelo Transaction. EjecutÃ¡ `prisma generate`.');
   }
   return model;
 }
 
 transactionsRouter.get('/', async (req, res) => {
   const transactionModel = getTransactionModel();
+  const scope = await resolveDuoScope(req.userId, req.query.duoId);
+  if ('status' in scope) {
+    return res.status(scope.status).json({ error: scope.message });
+  }
   const items = await transactionModel.findMany({
-    where: { userId: req.userId },
+    where: scope.type === 'duo' ? { duoId: scope.duoId } : { userId: req.userId, duoId: null },
     orderBy: { createdAt: 'desc' },
   });
   return res.json(
@@ -51,15 +57,20 @@ transactionsRouter.get('/', async (req, res) => {
 transactionsRouter.post('/', async (req, res) => {
   const parsed = transactionSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
+    return res.status(400).json({ error: 'Datos invÃ¡lidos', details: parsed.error.flatten() });
   }
-    const { type, amount, currency, category, date, method, note, weekly } = parsed.data;
+  const scope = await resolveDuoScope(req.userId, req.query.duoId);
+  if ('status' in scope) {
+    return res.status(scope.status).json({ error: scope.message });
+  }
+  const { type, amount, currency, category, date, method, note, weekly } = parsed.data;
   const transactionModel = getTransactionModel();
   let created;
   try {
     created = await transactionModel.create({
       data: {
         userId: req.userId,
+        duoId: scope.type === 'duo' ? scope.duoId : null,
         type,
         amount,
         currency,
@@ -75,6 +86,7 @@ transactionsRouter.post('/', async (req, res) => {
       created = await transactionModel.create({
         data: {
           userId: req.userId,
+          duoId: scope.type === 'duo' ? scope.duoId : null,
           type,
           amount,
           currency,
@@ -105,12 +117,16 @@ transactionsRouter.post('/', async (req, res) => {
 transactionsRouter.put('/:id', async (req, res) => {
   const parsed = transactionSchema.partial().safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
+    return res.status(400).json({ error: 'Datos invÃ¡lidos', details: parsed.error.flatten() });
+  }
+  const scope = await resolveDuoScope(req.userId, req.query.duoId);
+  if ('status' in scope) {
+    return res.status(scope.status).json({ error: scope.message });
   }
   const { id } = req.params;
   const transactionModel = getTransactionModel();
   const existing = await transactionModel.findFirst({
-    where: { id, userId: req.userId },
+    where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Movimiento no encontrado.' });
@@ -162,8 +178,12 @@ transactionsRouter.delete('/:id', async (req, res) => {
   // eslint-disable-next-line no-console
   console.log('[transactions][delete]', { id, userId: req.userId });
   const transactionModel = getTransactionModel();
+  const scope = await resolveDuoScope(req.userId, req.query.duoId);
+  if ('status' in scope) {
+    return res.status(scope.status).json({ error: scope.message });
+  }
   const existing = await transactionModel.findFirst({
-    where: { id, userId: req.userId },
+    where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     // eslint-disable-next-line no-console

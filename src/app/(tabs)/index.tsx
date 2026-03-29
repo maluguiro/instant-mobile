@@ -10,12 +10,14 @@ import { Pill } from '@/components/ui/pill';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { DuoToggle } from '@/components/ui/duo-toggle';
 import { StatRow } from '@/components/ui/stat-row';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { quickActions } from '@/constants/mock-data';
 import { Spacing } from '@/constants/theme';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { useAuth } from '@/hooks/use-auth';
+import { useDuo } from '@/hooks/use-duo';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { useTheme } from '@/hooks/use-theme';
 import { useTransactions } from '@/hooks/use-transactions';
@@ -37,6 +39,7 @@ import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 export default function HomeScreen() {
   const theme = useTheme();
   const { user } = useAuth();
+  const { state: duoState } = useDuo();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
   const { settings: appSettings } = useAppSettings();
@@ -71,7 +74,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [refresh, refreshSettings, appSettings.currency])
+    }, [refresh, refreshSettings, appSettings.currency, duoState.activeContext, duoState.duoId])
   );
 
   const monthData = useMemo(() => {
@@ -222,7 +225,10 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <ThemedText type="subtitle">Hola, {user?.name ?? 'bienvenida'}</ThemedText>
-          <ThemeToggle />
+          <View style={styles.toggleRow}>
+            <DuoToggle />
+            <ThemeToggle />
+          </View>
         </View>
         <ThemedText themeColor="textSecondary">
           ¿Cómo estás hoy? Esta es tu foto financiera.
@@ -494,6 +500,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   primaryCard: {
     gap: Spacing.two,

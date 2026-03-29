@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   appSettings: 'instant:app_settings',
   auth: 'instant:auth',
   biometricToken: 'instant:biometric_token',
+  duoState: 'instant:duo_state',
   transactionMeta: 'instant:transaction_meta',
   transactionsPendingCreates: 'instant:transactions_pending_creates',
   transactionsPendingDeletes: 'instant:transactions_pending_deletes',

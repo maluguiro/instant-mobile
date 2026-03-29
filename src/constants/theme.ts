@@ -24,6 +24,8 @@ export const Colors = {
     border: '#E6D4C2',
     card: '#FFF8F2',
     cardAlt: '#F3E5D7',
+    duoAccent: '#C69FD5',
+    duoSoft: '#FDFDC9',
   },
   dark: {
     text: '#F7EEE6',
@@ -41,6 +43,8 @@ export const Colors = {
     border: '#3A2C26',
     card: '#211915',
     cardAlt: '#2A1F1B',
+    duoAccent: '#C69FD5',
+    duoSoft: '#FDFDC9',
   },
 } as const;
 

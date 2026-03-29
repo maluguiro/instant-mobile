@@ -1,4 +1,5 @@
-ï»¿import { getItem, removeItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { getItem, removeItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { resetDuoState } from '@/lib/duo';
 import { apiRequest } from '@/lib/api';
 
 export type AuthUser = {
@@ -122,7 +123,7 @@ export async function updateProfile(payload: {
 }) {
   const state = await loadAuthState();
   if (!state.token) {
-    throw new Error('No hay sesiÃ³n activa.');
+    throw new Error('No hay sesión activa.');
   }
   const user = await apiRequest<AuthUser>('/me', {
     method: 'PUT',
@@ -140,7 +141,7 @@ export async function signInWithBiometrics() {
     token = await getItem<string | null>(STORAGE_KEYS.biometricToken, null);
   }
   if (!token) {
-    throw new Error('No hay sesiÃ³n guardada para usar biometrÃ­a.');
+    throw new Error('No hay sesión guardada para usar biometría.');
   }
   const user = await fetchProfileWithToken(token);
   await saveAuthState({ token, user, biometricsEnabled: state.biometricsEnabled });
@@ -160,6 +161,7 @@ export async function requestPasswordReset(email: string) {
 export async function signOut() {
   const state = await loadAuthState();
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
+  await resetDuoState();
   await setItem(STORAGE_KEYS.transactions, []);
 }
 
@@ -171,5 +173,12 @@ export async function lockSession() {
 export async function invalidateSession() {
   const state = await loadAuthState();
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
+  await resetDuoState();
 }
+
+
+
+
+
+
 

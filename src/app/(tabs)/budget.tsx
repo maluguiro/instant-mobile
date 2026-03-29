@@ -16,6 +16,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useFinanceSettings } from '@/hooks/use-finance-settings';
 import { useTheme } from '@/hooks/use-theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { useTransactions } from '@/hooks/use-transactions';
 import {
@@ -129,6 +130,7 @@ function formatGoalPlan(goal: SavingsGoal) {
 
 export default function BudgetScreen() {
   const theme = useTheme();
+  const { state: duoState } = useDuo();
   const { settings: appSettings } = useAppSettings();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { settings, refresh, update } = useFinanceSettings();
@@ -195,7 +197,7 @@ export default function BudgetScreen() {
       return () => {
         active = false;
       };
-    }, [refresh, refreshTransactions, appSettings.currency])
+    }, [refresh, refreshTransactions, appSettings.currency, duoState.activeContext, duoState.duoId])
   );
 
   useEffect(() => {

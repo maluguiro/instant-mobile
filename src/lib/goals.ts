@@ -1,3 +1,4 @@
+import { getActiveDataScope, scopedKey } from '@/lib/data-scope';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { CurrencyCode, getCachedAppSettings } from '@/lib/app-settings';
 
@@ -43,12 +44,14 @@ function normalizeGoal(goal: SavingsGoal): SavingsGoal {
 }
 
 export async function getSavingsGoals(): Promise<SavingsGoal[]> {
-  const items = await getItem<SavingsGoal[]>(STORAGE_KEYS.savingsGoals, []);
+  const scope = await getActiveDataScope();
+  const items = await getItem<SavingsGoal[]>(scopedKey(STORAGE_KEYS.savingsGoals, scope), []);
   return items.map(normalizeGoal);
 }
 
 export async function saveSavingsGoals(items: SavingsGoal[]): Promise<void> {
-  await setItem<SavingsGoal[]>(STORAGE_KEYS.savingsGoals, items);
+  const scope = await getActiveDataScope();
+  await setItem<SavingsGoal[]>(scopedKey(STORAGE_KEYS.savingsGoals, scope), items);
 }
 
 export async function addSavingsGoal(goal: SavingsGoal): Promise<SavingsGoal[]> {

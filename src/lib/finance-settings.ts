@@ -1,3 +1,4 @@
+import { getActiveDataScope, scopedKey } from '@/lib/data-scope';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { CurrencyCode, defaultAppSettings } from '@/lib/app-settings';
 
@@ -53,10 +54,12 @@ export const defaultFinanceSettings: FinanceSettings = {
 };
 
 export async function getFinanceSettings(): Promise<FinanceSettings> {
-  const stored = await getItem<Partial<FinanceSettings>>(STORAGE_KEYS.financeSettings, {});
+  const scope = await getActiveDataScope();
+  const stored = await getItem<Partial<FinanceSettings>>(scopedKey(STORAGE_KEYS.financeSettings, scope), {});
   return { ...defaultFinanceSettings, ...stored };
 }
 
 export async function saveFinanceSettings(settings: FinanceSettings): Promise<void> {
-  await setItem<FinanceSettings>(STORAGE_KEYS.financeSettings, settings);
+  const scope = await getActiveDataScope();
+  await setItem<FinanceSettings>(scopedKey(STORAGE_KEYS.financeSettings, scope), settings);
 }

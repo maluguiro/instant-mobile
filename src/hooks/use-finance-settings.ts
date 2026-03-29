@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   defaultFinanceSettings,
@@ -6,8 +6,10 @@ import {
   getFinanceSettings,
   saveFinanceSettings,
 } from '@/lib/finance-settings';
+import { useDuo } from '@/hooks/use-duo';
 
 export function useFinanceSettings() {
+  const { state: duoState } = useDuo();
   const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
   const [loading, setLoading] = useState(true);
 
@@ -23,5 +25,12 @@ export function useFinanceSettings() {
     setSettings(next);
   }, []);
 
+  useEffect(() => {
+    refresh();
+  }, [duoState.activeContext, duoState.duoId, refresh]);
+
   return { settings, loading, refresh, update };
 }
+
+
+

@@ -13,6 +13,7 @@ import { SelectableOption } from '@/components/ui/selectable-option';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
 import { scheduleLocalNotifications } from '@/lib/notifications';
@@ -94,6 +95,7 @@ async function openGoogleCalendarEvent(title: string, dateStr: string, details?:
 
 export default function CalendarScreen() {
   const theme = useTheme();
+  const { state: duoState } = useDuo();
   const { settings: appSettings, update } = useAppSettings();
   const params = useLocalSearchParams<{ tab?: string }>();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
@@ -172,7 +174,7 @@ export default function CalendarScreen() {
           setMethods(Array.from(new Set([...storedMethods, ...BASE_PAYMENT_METHODS])));
         }
       );
-    }, [])
+    }, [duoState.activeContext, duoState.duoId])
   );
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
+import { getActiveDataScope, scopedKey } from '@/lib/data-scope';
 import { Transaction, TransactionSystem } from '@/lib/types';
 
 export type TransactionMeta = {
@@ -7,12 +8,14 @@ export type TransactionMeta = {
 };
 
 export async function getTransactionMetaMap(): Promise<Record<string, TransactionMeta>> {
-  return getItem<Record<string, TransactionMeta>>(STORAGE_KEYS.transactionMeta, {});
+  const scope = await getActiveDataScope();
+  return getItem<Record<string, TransactionMeta>>(scopedKey(STORAGE_KEYS.transactionMeta, scope), {});
 }
 
 export async function setTransactionMeta(id: string, meta: TransactionMeta): Promise<void> {
   const current = await getTransactionMetaMap();
-  await setItem(STORAGE_KEYS.transactionMeta, { ...current, [id]: { ...current[id], ...meta } });
+  const scope = await getActiveDataScope();
+  await setItem(scopedKey(STORAGE_KEYS.transactionMeta, scope), { ...current, [id]: { ...current[id], ...meta } });
 }
 
 export async function removeTransactionMeta(id: string): Promise<void> {
@@ -20,7 +23,8 @@ export async function removeTransactionMeta(id: string): Promise<void> {
   if (!current[id]) return;
   const next = { ...current };
   delete next[id];
-  await setItem(STORAGE_KEYS.transactionMeta, next);
+  const scope = await getActiveDataScope();
+  await setItem(scopedKey(STORAGE_KEYS.transactionMeta, scope), next);
 }
 
 export async function applyTransactionMeta(items: Transaction[]): Promise<Transaction[]> {

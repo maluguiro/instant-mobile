@@ -1,3 +1,4 @@
+import { getActiveDataScope, scopedKey } from '@/lib/data-scope';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { CurrencyCode, getCachedAppSettings } from '@/lib/app-settings';
 
@@ -52,7 +53,8 @@ export type Installment = {
 };
 
 export async function getDueDates(): Promise<DueDate[]> {
-  const items = await getItem<DueDate[]>(STORAGE_KEYS.dueDates, []);
+  const scope = await getActiveDataScope();
+  const items = await getItem<DueDate[]>(scopedKey(STORAGE_KEYS.dueDates, scope), []);
   const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: 'pending',
@@ -64,7 +66,8 @@ export async function getDueDates(): Promise<DueDate[]> {
 }
 
 export async function saveDueDates(items: DueDate[]): Promise<void> {
-  await setItem(STORAGE_KEYS.dueDates, items);
+  const scope = await getActiveDataScope();
+  await setItem(scopedKey(STORAGE_KEYS.dueDates, scope), items);
 }
 
 export async function addDueDate(item: DueDate): Promise<DueDate[]> {
@@ -82,7 +85,8 @@ export async function removeDueDate(id: string): Promise<DueDate[]> {
 }
 
 export async function getRecurringPayments(): Promise<RecurringPayment[]> {
-  const items = await getItem<RecurringPayment[]>(STORAGE_KEYS.recurringPayments, []);
+  const scope = await getActiveDataScope();
+  const items = await getItem<RecurringPayment[]>(scopedKey(STORAGE_KEYS.recurringPayments, scope), []);
   const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: 'active',
@@ -96,7 +100,8 @@ export async function getRecurringPayments(): Promise<RecurringPayment[]> {
 }
 
 export async function saveRecurringPayments(items: RecurringPayment[]): Promise<void> {
-  await setItem(STORAGE_KEYS.recurringPayments, items);
+  const scope = await getActiveDataScope();
+  await setItem(scopedKey(STORAGE_KEYS.recurringPayments, scope), items);
 }
 
 export async function addRecurringPayment(item: RecurringPayment): Promise<RecurringPayment[]> {
@@ -114,7 +119,8 @@ export async function removeRecurringPayment(id: string): Promise<RecurringPayme
 }
 
 export async function getInstallments(): Promise<Installment[]> {
-  const items = await getItem<Installment[]>(STORAGE_KEYS.installments, []);
+  const scope = await getActiveDataScope();
+  const items = await getItem<Installment[]>(scopedKey(STORAGE_KEYS.installments, scope), []);
   const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
   return items.map((item) => ({
     status: item.current >= item.total ? 'completed' : 'active',
@@ -126,7 +132,8 @@ export async function getInstallments(): Promise<Installment[]> {
 }
 
 export async function saveInstallments(items: Installment[]): Promise<void> {
-  await setItem(STORAGE_KEYS.installments, items);
+  const scope = await getActiveDataScope();
+  await setItem(scopedKey(STORAGE_KEYS.installments, scope), items);
 }
 
 export async function addInstallment(item: Installment): Promise<Installment[]> {

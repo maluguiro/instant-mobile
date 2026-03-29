@@ -1,6 +1,7 @@
 import { apiRequest } from '@/lib/api';
 import { getCachedAuthState, invalidateSession, loadAuthState } from '@/lib/auth';
 import { getCachedAppSettings } from '@/lib/app-settings';
+import { getActiveDataScope, scopedKey, withDuoQuery } from '@/lib/data-scope';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { Transaction, TransactionSystem } from '@/lib/types';
 import { applyTransactionMeta, removeTransactionMeta, setTransactionMeta, TransactionMeta } from '@/lib/transaction-meta';
@@ -8,31 +9,41 @@ import { applyTransactionMeta, removeTransactionMeta, setTransactionMeta, Transa
 type TransactionsListener = () => void;
 const transactionsListeners = new Set<TransactionsListener>();
 
-async function getPendingCreates(): Promise<Transaction[]> {
-  return getItem<Transaction[]>(STORAGE_KEYS.transactionsPendingCreates, []);
+async function getPendingCreates(scope: Awaited<ReturnType<typeof getActiveDataScope>>): Promise<Transaction[]> {
+  return getItem<Transaction[]>(scopedKey(STORAGE_KEYS.transactionsPendingCreates, scope), []);
 }
 
-async function setPendingCreates(items: Transaction[]) {
-  await setItem<Transaction[]>(STORAGE_KEYS.transactionsPendingCreates, items);
+async function setPendingCreates(
+  scope: Awaited<ReturnType<typeof getActiveDataScope>>,
+  items: Transaction[]
+) {
+  await setItem<Transaction[]>(scopedKey(STORAGE_KEYS.transactionsPendingCreates, scope), items);
 }
 
-async function getPendingDeletes(): Promise<string[]> {
-  return getItem<string[]>(STORAGE_KEYS.transactionsPendingDeletes, []);
+async function getPendingDeletes(scope: Awaited<ReturnType<typeof getActiveDataScope>>): Promise<string[]> {
+  return getItem<string[]>(scopedKey(STORAGE_KEYS.transactionsPendingDeletes, scope), []);
 }
 
-async function setPendingDeletes(items: string[]) {
-  await setItem<string[]>(STORAGE_KEYS.transactionsPendingDeletes, items);
+async function setPendingDeletes(
+  scope: Awaited<ReturnType<typeof getActiveDataScope>>,
+  items: string[]
+) {
+  await setItem<string[]>(scopedKey(STORAGE_KEYS.transactionsPendingDeletes, scope), items);
 }
 
-async function syncPending(token: string, current: Transaction[]): Promise<Transaction[]> {
+async function syncPending(
+  token: string,
+  current: Transaction[],
+  scope: Awaited<ReturnType<typeof getActiveDataScope>>
+): Promise<Transaction[]> {
   let next = current;
 
-  const pendingDeletes = await getPendingDeletes();
+  const pendingDeletes = await getPendingDeletes(scope);
   if (pendingDeletes.length > 0) {
     const remainingDeletes: string[] = [];
     for (const id of pendingDeletes) {
       try {
-        await apiRequest(`/transactions/${id}`, { method: 'DELETE', token });
+        await apiRequest(withDuoQuery(`/transactions/${id}`, scope), { method: 'DELETE', token });
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         if (message.includes('Movimiento no encontrado')) {
@@ -41,16 +52,16 @@ async function syncPending(token: string, current: Transaction[]): Promise<Trans
         remainingDeletes.push(id);
       }
     }
-    await setPendingDeletes(remainingDeletes);
+    await setPendingDeletes(scope, remainingDeletes);
     next = next.filter((tx) => !pendingDeletes.includes(tx.id));
   }
 
-  const pendingCreates = await getPendingCreates();
+  const pendingCreates = await getPendingCreates(scope);
   if (pendingCreates.length > 0) {
     const remainingCreates: Transaction[] = [];
     for (const item of pendingCreates) {
       try {
-        const created = await apiRequest<Transaction>('/transactions', {
+        const created = await apiRequest<Transaction>(withDuoQuery('/transactions', scope), {
           method: 'POST',
           token,
           body: {
@@ -69,7 +80,7 @@ async function syncPending(token: string, current: Transaction[]): Promise<Trans
         remainingCreates.push(item);
       }
     }
-    await setPendingCreates(remainingCreates);
+    await setPendingCreates(scope, remainingCreates);
   }
 
   return next;
@@ -117,32 +128,34 @@ function splitMeta(payload: Partial<Transaction>) {
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const token = await getAuthToken();
   if (!token) {
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const items = await getItem<Transaction[]>(storageKey, []);
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
 
   try {
-    let items = await apiRequest<Transaction[]>('/transactions', {
+    let items = await apiRequest<Transaction[]>(withDuoQuery('/transactions', scope), {
       method: 'GET',
       token,
     });
 
-    const pendingDeletes = await getPendingDeletes();
+    const pendingDeletes = await getPendingDeletes(scope);
     if (pendingDeletes.length > 0) {
       items = items.filter((tx) => !pendingDeletes.includes(tx.id));
     }
-    const pendingCreates = await getPendingCreates();
+    const pendingCreates = await getPendingCreates(scope);
     if (pendingCreates.length > 0) {
       const existingIds = new Set(items.map((tx) => tx.id));
       const mergedLocal = pendingCreates.filter((tx) => !existingIds.has(tx.id));
       items = [...mergedLocal, ...items];
     }
 
-    items = await syncPending(token, items);
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, items);
+    items = await syncPending(token, items, scope);
+    await setItem<Transaction[]>(storageKey, items);
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   } catch (error) {
@@ -150,18 +163,20 @@ export async function getTransactions(): Promise<Transaction[]> {
     if (message.includes('Token inválido') || message.includes('Token requerido')) {
       await invalidateSession();
     }
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const items = await getItem<Transaction[]>(storageKey, []);
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
 }
 
 export async function addTransaction(item: Transaction, meta?: TransactionMeta): Promise<Transaction[]> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const token = await getAuthToken();
   if (!token) {
     const items = await getTransactions();
     const next = [item, ...items];
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await setItem<Transaction[]>(storageKey, next);
     if (meta) {
       await setTransactionMeta(item.id, meta);
     }
@@ -170,7 +185,7 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
   }
 
   try {
-    const created = await apiRequest<Transaction>('/transactions', {
+    const created = await apiRequest<Transaction>(withDuoQuery('/transactions', scope), {
       method: 'POST',
       token,
       body: {
@@ -188,18 +203,18 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
     if (meta) {
       await setTransactionMeta(created.id, meta);
     }
-    const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const cached = await getItem<Transaction[]>(storageKey, []);
     const next = [created, ...cached];
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await setItem<Transaction[]>(storageKey, next);
     const merged = await applyTransactionMeta(next);
     notifyTransactionsChanged();
     return normalizeTransactions(merged);
   } catch {
-    const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const cached = await getItem<Transaction[]>(storageKey, []);
     const next = [item, ...cached];
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
-    const pending = await getPendingCreates();
-    await setPendingCreates([item, ...pending]);
+    await setItem<Transaction[]>(storageKey, next);
+    const pending = await getPendingCreates(scope);
+    await setPendingCreates(scope, [item, ...pending]);
     if (meta) {
       await setTransactionMeta(item.id, meta);
     }
@@ -210,12 +225,14 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
 }
 
 export async function updateTransaction(id: string, payload: Partial<Transaction>): Promise<Transaction | null> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const token = await getAuthToken();
   const { meta, body } = splitMeta(payload);
   if (!token) {
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const items = await getItem<Transaction[]>(storageKey, []);
     const next = items.map((tx) => (tx.id === id ? { ...tx, ...payload } : tx));
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await setItem<Transaction[]>(storageKey, next);
     if (meta.weekly !== undefined || meta.system !== undefined) {
       await setTransactionMeta(id, meta);
     }
@@ -223,7 +240,7 @@ export async function updateTransaction(id: string, payload: Partial<Transaction
     return next.find((tx) => tx.id === id) ?? null;
   }
 
-  const updated = await apiRequest<Transaction>(`/transactions/${id}`, {
+  const updated = await apiRequest<Transaction>(withDuoQuery(`/transactions/${id}`, scope), {
     method: 'PUT',
     token,
     body,
@@ -231,47 +248,49 @@ export async function updateTransaction(id: string, payload: Partial<Transaction
   if (meta.weekly !== undefined || meta.system !== undefined) {
     await setTransactionMeta(id, meta);
   }
-  const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+  const items = await getItem<Transaction[]>(storageKey, []);
   const next = items.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx));
-  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  await setItem<Transaction[]>(storageKey, next);
   const merged = await applyTransactionMeta([updated]);
   notifyTransactionsChanged();
   return merged[0] ?? updated;
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const token = await getAuthToken();
   if (!token) {
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const items = await getItem<Transaction[]>(storageKey, []);
     const next = items.filter((tx) => tx.id !== id);
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await setItem<Transaction[]>(storageKey, next);
     await removeTransactionMeta(id);
     notifyTransactionsChanged();
     return true;
   }
 
   try {
-    await apiRequest(`/transactions/${id}`, {
+    await apiRequest(withDuoQuery(`/transactions/${id}`, scope), {
       method: 'DELETE',
       token,
     });
-    const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+    const items = await getItem<Transaction[]>(storageKey, []);
     const next = items.filter((tx) => tx.id !== id);
-    await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    await setItem<Transaction[]>(storageKey, next);
     await removeTransactionMeta(id);
     notifyTransactionsChanged();
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (message.includes('Movimiento no encontrado') || message.includes('No pudimos conectar')) {
-      const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
+      const items = await getItem<Transaction[]>(storageKey, []);
       const next = items.filter((tx) => tx.id !== id);
-      await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+      await setItem<Transaction[]>(storageKey, next);
       await removeTransactionMeta(id);
       if (message.includes('No pudimos conectar')) {
-        const pendingDeletes = await getPendingDeletes();
+        const pendingDeletes = await getPendingDeletes(scope);
         if (!pendingDeletes.includes(id)) {
-          await setPendingDeletes([id, ...pendingDeletes]);
+          await setPendingDeletes(scope, [id, ...pendingDeletes]);
         }
       }
       notifyTransactionsChanged();
@@ -285,15 +304,19 @@ export async function deleteTransaction(id: string): Promise<boolean> {
 }
 
 export async function updateTransactionCategory(previous: string, nextName: string): Promise<Transaction[]> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const items = await getTransactions();
   const next = items.map((tx) => (tx.category === previous ? { ...tx, category: nextName } : tx));
-  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  await setItem<Transaction[]>(storageKey, next);
   return normalizeTransactions(next);
 }
 
 export async function updateTransactionMethod(previous: string, nextName: string): Promise<Transaction[]> {
+  const scope = await getActiveDataScope();
+  const storageKey = scopedKey(STORAGE_KEYS.transactions, scope);
   const items = await getTransactions();
   const next = items.map((tx) => (tx.method === previous ? { ...tx, method: nextName } : tx));
-  await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+  await setItem<Transaction[]>(storageKey, next);
   return normalizeTransactions(next);
 }

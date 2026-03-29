@@ -8,6 +8,7 @@ import { getProfile, updateProfile } from './routes/profile';
 import { transactionsRouter } from './routes/transactions';
 import { categoriesRouter } from './routes/categories';
 import { paymentMethodsRouter } from './routes/payment-methods';
+import { duoRouter } from './routes/duo';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.put('/me', authMiddleware, updateProfile);
 app.use('/transactions', authMiddleware, transactionsRouter);
 app.use('/categories', authMiddleware, categoriesRouter);
 app.use('/payment-methods', authMiddleware, paymentMethodsRouter);
+app.use('/duo', authMiddleware, duoRouter);
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {

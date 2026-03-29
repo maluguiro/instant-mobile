@@ -17,6 +17,7 @@ model User {
   transactions Transaction[]
   categories   Category[]
   methods      PaymentMethod[]
+  duoMemberships DuoMember[]
 }
 
 enum TransactionType {
@@ -24,10 +25,38 @@ enum TransactionType {
   expense
 }
 
+model Duo {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  closedAt    DateTime?
+  closedById  String?
+  members     DuoMember[]
+  transactions Transaction[]
+  categories   Category[]
+  methods      PaymentMethod[]
+}
+
+model DuoMember {
+  id        String   @id @default(cuid())
+  duoId     String
+  duo       Duo      @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([duoId, userId])
+}
+
 model Transaction {
   id        String          @id @default(cuid())
   userId    String
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId     String?
+  duo       Duo?            @relation(fields: [duoId], references: [id], onDelete: Cascade)
   type      TransactionType
   amount    Float
   currency  String
@@ -38,26 +67,34 @@ model Transaction {
   weekly    Boolean         @default(false)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+
+  @@index([duoId])
 }
 
 model Category {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId     String?
+  duo       Duo?     @relation(fields: [duoId], references: [id], onDelete: Cascade)
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, name])
+  @@unique([duoId, name])
 }
 
 model PaymentMethod {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId     String?
+  duo       Duo?     @relation(fields: [duoId], references: [id], onDelete: Cascade)
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, name])
+  @@unique([duoId, name])
 }

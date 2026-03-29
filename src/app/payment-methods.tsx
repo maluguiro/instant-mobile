@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods, removePaymentMethod, updatePaymentMethod } from '@/lib/payment-methods';
 import { getTransactions, updateTransactionMethod } from '@/lib/transactions';
@@ -18,6 +19,7 @@ export default function PaymentMethodsScreen() {
   const [editingMethod, setEditingMethod] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [transactions, setTransactions] = useState<Awaited<ReturnType<typeof getTransactions>>>([]);
+  const { state: duoState } = useDuo();
 
   useFocusEffect(
     useCallback(() => {
@@ -36,7 +38,7 @@ export default function PaymentMethodsScreen() {
       return () => {
         active = false;
       };
-    }, [])
+    }, [duoState.activeContext, duoState.duoId])
   );
 
   const usedMethods = useMemo(() => {
