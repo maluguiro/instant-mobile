@@ -14,6 +14,14 @@ export const STORAGE_KEYS = {
   auth: 'instant:auth',
   biometricToken: 'instant:biometric_token',
   transactionMeta: 'instant:transaction_meta',
+  transactionsPendingCreates: 'instant:transactions_pending_creates',
+  transactionsPendingDeletes: 'instant:transactions_pending_deletes',
+  categoriesPendingCreates: 'instant:categories_pending_creates',
+  categoriesPendingDeletes: 'instant:categories_pending_deletes',
+  categoriesPendingUpdates: 'instant:categories_pending_updates',
+  methodsPendingCreates: 'instant:methods_pending_creates',
+  methodsPendingDeletes: 'instant:methods_pending_deletes',
+  methodsPendingUpdates: 'instant:methods_pending_updates',
 } as const;
 
 export async function getItem<T>(key: string, fallback: T): Promise<T> {

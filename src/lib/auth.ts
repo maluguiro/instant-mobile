@@ -168,3 +168,8 @@ export async function lockSession() {
   await saveAuthState({ token: state.token ?? null, user: null, biometricsEnabled: state.biometricsEnabled });
 }
 
+export async function invalidateSession() {
+  const state = await loadAuthState();
+  await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
+}
+

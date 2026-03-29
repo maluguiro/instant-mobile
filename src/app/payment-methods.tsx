@@ -8,8 +8,7 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { addPaymentMethod, getPaymentMethods, removePaymentMethod, updatePaymentMethod } from '@/lib/payment-methods';
-import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
+import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods, removePaymentMethod, updatePaymentMethod } from '@/lib/payment-methods';
 import { getTransactions, updateTransactionMethod } from '@/lib/transactions';
 
 export default function PaymentMethodsScreen() {
@@ -26,7 +25,7 @@ export default function PaymentMethodsScreen() {
       Promise.all([getPaymentMethods(), getTransactions()])
         .then(([items, tx]) => {
           if (!active) return;
-          const merged = Array.from(new Set([...items, ...defaultPaymentMethods]));
+          const merged = Array.from(new Set([...items, ...BASE_PAYMENT_METHODS]));
           setMethods(merged);
           setTransactions(tx);
         })
@@ -59,12 +58,12 @@ export default function PaymentMethodsScreen() {
       return;
     }
     const next = await addPaymentMethod(trimmed);
-    setMethods(Array.from(new Set([...next, ...defaultPaymentMethods])));
+    setMethods(Array.from(new Set([...next, ...BASE_PAYMENT_METHODS])));
     setNewMethod('');
   };
 
   const isBaseMethod = (method: string) =>
-    defaultPaymentMethods.some((item) => item.localeCompare(method, undefined, { sensitivity: 'accent' }) === 0);
+    BASE_PAYMENT_METHODS.some((item) => item.localeCompare(method, undefined, { sensitivity: 'accent' }) === 0);
 
   const handleEdit = (method: string) => {
     if (isBaseMethod(method)) {
@@ -90,7 +89,7 @@ export default function PaymentMethodsScreen() {
     }
     const next = await updatePaymentMethod(editingMethod, trimmed);
     await updateTransactionMethod(editingMethod, trimmed);
-    setMethods(Array.from(new Set([...next, ...defaultPaymentMethods])));
+    setMethods(Array.from(new Set([...next, ...BASE_PAYMENT_METHODS])));
     setEditingMethod(null);
     setEditingValue('');
   };
@@ -115,7 +114,7 @@ export default function PaymentMethodsScreen() {
         style: 'destructive',
         onPress: async () => {
           const next = await removePaymentMethod(method);
-          setMethods(Array.from(new Set([...next, ...defaultPaymentMethods])));
+          setMethods(Array.from(new Set([...next, ...BASE_PAYMENT_METHODS])));
         },
       },
     ]);

@@ -272,6 +272,17 @@ export async function scheduleLocalNotifications(): Promise<void> {
         { route: '/(tabs)/calendar', params: { tab: 'recurring' } },
         categoryId
       );
+      if (importantRepeat > 0) {
+        const repeatDate = dateAtHour(item.nextDate, importantTime.hours, importantTime.minutes);
+        repeatDate.setDate(repeatDate.getDate() + importantRepeat);
+        await scheduleAtDate(
+          repeatDate,
+          'Pago pendiente',
+          `${item.name} · ${formatCurrency(item.amount, item.currency)}`,
+          { route: '/(tabs)/calendar', params: { tab: 'recurring' } },
+          categoryId
+        );
+      }
     }
 
     for (const item of installments.filter((entry) => entry.status !== 'completed' && entry.important)) {

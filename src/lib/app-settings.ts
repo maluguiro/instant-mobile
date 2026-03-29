@@ -12,8 +12,6 @@ export type AppSettings = {
     installments: boolean;
     importantEnabled: boolean;
     snoozeEnabled: boolean;
-    dueDatesImportantOnly: boolean;
-    dueDatesMinAmount: number;
     importantHintShown: boolean;
     advanceDays: {
       dueDates: number;
@@ -52,8 +50,6 @@ export const defaultAppSettings: AppSettings = {
     installments: true,
     importantEnabled: false,
     snoozeEnabled: true,
-    dueDatesImportantOnly: false,
-    dueDatesMinAmount: 0,
     importantHintShown: false,
     advanceDays: {
       dueDates: 2,

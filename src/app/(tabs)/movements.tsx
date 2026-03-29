@@ -25,9 +25,8 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getCategories } from '@/lib/categories';
-import { getPaymentMethods } from '@/lib/payment-methods';
-import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
+import { addCategory, getCategories } from '@/lib/categories';
+import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
 import { Transaction } from '@/lib/types';
 
 const PERIOD_FILTERS = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado'] as const;
@@ -77,7 +76,7 @@ export default function MovementsScreen() {
   const [editDate, setEditDate] = useState<Date>(new Date());
   const [editShowPicker, setEditShowPicker] = useState(false);
   const [editCategories, setEditCategories] = useState<string[]>([]);
-  const [editMethods, setEditMethods] = useState<string[]>(defaultPaymentMethods);
+  const [editMethods, setEditMethods] = useState<string[]>(BASE_PAYMENT_METHODS);
   const [editError, setEditError] = useState('');
 
   useFocusEffect(
@@ -113,7 +112,7 @@ export default function MovementsScreen() {
     if (!editingTx) return;
     getCategories().then(setEditCategories);
     getPaymentMethods().then((stored) => {
-      const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+      const merged = Array.from(new Set([...stored, ...BASE_PAYMENT_METHODS]));
       setEditMethods(merged);
     });
   }, [editingTx]);
@@ -214,7 +213,6 @@ export default function MovementsScreen() {
   };
 
   const openEdit = (tx: Transaction) => {
-    console.log('[movements][openEdit]', { id: tx.id, system: tx.system, currency: tx.currency, createdAt: tx.createdAt });
     setEditError('');
     setEditingTx(tx);
     setEditType(tx.type);
@@ -249,6 +247,8 @@ export default function MovementsScreen() {
     }
 
     try {
+      const previousCategory = editingTx.category;
+      const previousMethod = editingTx.method;
       const updated = await update(editingTx.id, {
         type: editType,
         amount: value,
@@ -263,6 +263,12 @@ export default function MovementsScreen() {
         setEditError('No pudimos guardar este movimiento. Probá de nuevo.');
         return;
       }
+      if (editCategory.trim() && editCategory.trim() !== previousCategory) {
+        await addCategory(editCategory.trim());
+      }
+      if (editMethod.trim() && editMethod.trim() !== previousMethod) {
+        await addPaymentMethod(editMethod.trim());
+      }
       setEditingTx(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No pudimos guardar este movimiento.';
@@ -272,16 +278,13 @@ export default function MovementsScreen() {
 
   const handleDelete = async () => {
     if (!editingTx) return;
-    console.log('[movements][delete][start]', { id: editingTx.id, system: editingTx.system, createdAt: editingTx.createdAt });
     Alert.alert('Eliminar movimiento', '¿Querés eliminar este movimiento?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          console.log('[movements][delete][confirm]', { id: editingTx.id });
           const ok = await remove(editingTx.id);
-          console.log('[movements][delete][result]', { id: editingTx.id, ok });
           if (!ok) {
             Alert.alert('No pudimos eliminar', 'No se pudo borrar el movimiento. Revisá tu conexión.');
             return;

@@ -159,13 +159,19 @@ transactionsRouter.put('/:id', async (req, res) => {
 
 transactionsRouter.delete('/:id', async (req, res) => {
   const { id } = req.params;
+  // eslint-disable-next-line no-console
+  console.log('[transactions][delete]', { id, userId: req.userId });
   const transactionModel = getTransactionModel();
   const existing = await transactionModel.findFirst({
     where: { id, userId: req.userId },
   });
   if (!existing) {
+    // eslint-disable-next-line no-console
+    console.log('[transactions][delete][not-found]', { id, userId: req.userId });
     return res.status(404).json({ error: 'Movimiento no encontrado.' });
   }
   await transactionModel.delete({ where: { id } });
+  // eslint-disable-next-line no-console
+  console.log('[transactions][delete][ok]', { id, userId: req.userId });
   return res.status(204).send();
 });

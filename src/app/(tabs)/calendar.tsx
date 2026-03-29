@@ -34,8 +34,7 @@ import {
   saveRecurringPayments,
 } from '@/lib/calendar';
 import { addCategory, getCategories } from '@/lib/categories';
-import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
-import { addPaymentMethod, getPaymentMethods } from '@/lib/payment-methods';
+import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
 
 const TABS = ['Próximos vencimientos', 'Recurrentes', 'Cuotas'] as const;
 const ADD_TYPES = ['Pago único', 'Recurrente', 'Cuota'] as const;
@@ -105,7 +104,7 @@ export default function CalendarScreen() {
   const [installments, setInstallments] = useState<Installment[]>([]);
 
   const [categories, setCategories] = useState<string[]>([]);
-  const [methods, setMethods] = useState<string[]>(defaultPaymentMethods);
+  const [methods, setMethods] = useState<string[]>(BASE_PAYMENT_METHODS);
 
   const [showAdd, setShowAdd] = useState(false);
   const [addType, setAddType] = useState<AddType>('Pago único');
@@ -170,7 +169,7 @@ export default function CalendarScreen() {
           setRecurring(rec);
           setInstallments(inst);
           setCategories(cats);
-          setMethods(Array.from(new Set([...storedMethods, ...defaultPaymentMethods])));
+          setMethods(Array.from(new Set([...storedMethods, ...BASE_PAYMENT_METHODS])));
         }
       );
     }, [])
@@ -463,7 +462,7 @@ export default function CalendarScreen() {
       setCategories(next);
     } else {
       const updated = await addPaymentMethod(trimmed);
-      setMethods(Array.from(new Set([...updated, ...defaultPaymentMethods])));
+      setMethods(Array.from(new Set([...updated, ...BASE_PAYMENT_METHODS])));
     }
     updateSelection(trimmed);
     setNewOption('');

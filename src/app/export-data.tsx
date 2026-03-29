@@ -16,7 +16,7 @@ import { getFinanceSettings } from '@/lib/finance-settings';
 import { getTransactions } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 
-type PeriodOption = 'Este mes' | 'Mes anterior' | 'Este aÃ±o' | 'Personalizado';
+type PeriodOption = 'Este mes' | 'Mes anterior' | 'Este año' | 'Personalizado';
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') return null;
@@ -56,7 +56,7 @@ function filterTransactions(transactions: Transaction[], period: PeriodOption, s
       return date.getFullYear() === year && date.getMonth() === targetMonth;
     });
   }
-  if (period === 'Este aÃ±o') {
+  if (period === 'Este año') {
     const year = now.getFullYear();
     return transactions.filter((tx) => {
       const date = new Date(tx.date + 'T00:00:00');
@@ -216,7 +216,7 @@ export default function ExportDataScreen() {
       <Card variant="soft">
         <SectionHeader title="Por período" />
         <View style={styles.tabsRow}>
-          {(['Este mes', 'Mes anterior', 'Este aÃ±o', 'Personalizado'] as PeriodOption[]).map((option) => (
+          {(['Este mes', 'Mes anterior', 'Este año', 'Personalizado'] as PeriodOption[]).map((option) => (
             <SelectableOption
               key={option}
               label={option}

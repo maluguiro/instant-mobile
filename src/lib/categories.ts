@@ -1,3 +1,5 @@
+import { apiRequest } from '@/lib/api';
+import { getCachedAuthState, loadAuthState } from '@/lib/auth';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 
 const DEFAULT_CATEGORIES = [
@@ -20,10 +22,134 @@ function equalsIgnoreCase(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0;
 }
 
+type PendingUpdate = { from: string; to: string };
+
+async function getAuthToken() {
+  const cached = getCachedAuthState();
+  if (cached.token) return cached.token;
+  const loaded = await loadAuthState();
+  return loaded.token;
+}
+
+async function getPendingCreates() {
+  return getItem<string[]>(STORAGE_KEYS.categoriesPendingCreates, []);
+}
+
+async function getPendingDeletes() {
+  return getItem<string[]>(STORAGE_KEYS.categoriesPendingDeletes, []);
+}
+
+async function getPendingUpdates() {
+  return getItem<PendingUpdate[]>(STORAGE_KEYS.categoriesPendingUpdates, []);
+}
+
+async function setPendingCreates(items: string[]) {
+  await setItem(STORAGE_KEYS.categoriesPendingCreates, items);
+}
+
+async function setPendingDeletes(items: string[]) {
+  await setItem(STORAGE_KEYS.categoriesPendingDeletes, items);
+}
+
+async function setPendingUpdates(items: PendingUpdate[]) {
+  await setItem(STORAGE_KEYS.categoriesPendingUpdates, items);
+}
+
+async function syncPending(token: string, current: string[]): Promise<string[]> {
+  let next = current;
+
+  const pendingDeletes = await getPendingDeletes();
+  if (pendingDeletes.length > 0) {
+    const remaining: string[] = [];
+    for (const name of pendingDeletes) {
+      try {
+        await apiRequest(`/categories/${encodeURIComponent(name)}`, { method: 'DELETE', token });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (!message.includes('Categoría no encontrada')) {
+          remaining.push(name);
+        }
+      }
+    }
+    await setPendingDeletes(remaining);
+    next = next.filter((item) => !pendingDeletes.some((name) => equalsIgnoreCase(name, item)));
+  }
+
+  const pendingUpdates = await getPendingUpdates();
+  if (pendingUpdates.length > 0) {
+    const remaining: PendingUpdate[] = [];
+    for (const entry of pendingUpdates) {
+      try {
+        await apiRequest(`/categories/${encodeURIComponent(entry.from)}`, {
+          method: 'PUT',
+          token,
+          body: { name: entry.to },
+        });
+        next = next.map((item) => (equalsIgnoreCase(item, entry.from) ? entry.to : item));
+      } catch {
+        remaining.push(entry);
+      }
+    }
+    await setPendingUpdates(remaining);
+  }
+
+  const pendingCreates = await getPendingCreates();
+  if (pendingCreates.length > 0) {
+    const remaining: string[] = [];
+    for (const name of pendingCreates) {
+      try {
+        await apiRequest('/categories', { method: 'POST', token, body: { name } });
+        if (!next.some((item) => equalsIgnoreCase(item, name))) {
+          next = [name, ...next];
+        }
+      } catch {
+        remaining.push(name);
+      }
+    }
+    await setPendingCreates(remaining);
+  }
+
+  return next;
+}
+
 export async function getCategories(): Promise<string[]> {
+  const token = await getAuthToken();
   const stored = await getItem<string[]>(STORAGE_KEYS.categories, []);
-  const merged = Array.from(new Set([...stored, ...DEFAULT_CATEGORIES]));
-  return merged;
+  if (!token) {
+    return Array.from(new Set([...stored, ...DEFAULT_CATEGORIES]));
+  }
+  try {
+    const items = await apiRequest<{ id: string; name: string }[]>('/categories', {
+      method: 'GET',
+      token,
+    });
+    let names = items.map((item) => item.name);
+    names = names.filter((item) => !isBaseCategory(item));
+    const pendingDeletes = await getPendingDeletes();
+    if (pendingDeletes.length > 0) {
+      names = names.filter((item) => !pendingDeletes.some((name) => equalsIgnoreCase(name, item)));
+    }
+    const pendingUpdates = await getPendingUpdates();
+    if (pendingUpdates.length > 0) {
+      names = names.map((item) => {
+        const update = pendingUpdates.find((entry) => equalsIgnoreCase(entry.from, item));
+        return update ? update.to : item;
+      });
+    }
+    const pendingCreates = await getPendingCreates();
+    if (pendingCreates.length > 0) {
+      for (const name of pendingCreates) {
+        if (!names.some((item) => equalsIgnoreCase(item, name))) {
+          names.unshift(name);
+        }
+      }
+    }
+    names = await syncPending(token, names);
+    await setItem(STORAGE_KEYS.categories, names);
+    return Array.from(new Set([...names, ...DEFAULT_CATEGORIES]));
+  } catch {
+    return Array.from(new Set([...stored, ...DEFAULT_CATEGORIES]));
+  }
 }
 
 export async function addCategory(name: string): Promise<string[]> {
@@ -31,18 +157,44 @@ export async function addCategory(name: string): Promise<string[]> {
   if (!trimmed) {
     return getCategories();
   }
+  if (isBaseCategory(trimmed)) {
+    return getCategories();
+  }
+  const token = await getAuthToken();
   const items = await getItem<string[]>(STORAGE_KEYS.categories, []);
-  const exists = items.some((item) => equalsIgnoreCase(item, trimmed)) || DEFAULT_CATEGORIES.some((item) =>
-    equalsIgnoreCase(item, trimmed)
-  );
-  const next = exists ? items : [trimmed, ...items];
-  await setItem(STORAGE_KEYS.categories, next);
-  return getCategories();
+  const exists =
+    items.some((item) => equalsIgnoreCase(item, trimmed)) ||
+    DEFAULT_CATEGORIES.some((item) => equalsIgnoreCase(item, trimmed));
+  if (exists) return getCategories();
+  if (!token) {
+    const next = [trimmed, ...items];
+    await setItem(STORAGE_KEYS.categories, next);
+    return getCategories();
+  }
+  try {
+    await apiRequest('/categories', { method: 'POST', token, body: { name: trimmed } });
+    const next = [trimmed, ...items];
+    await setItem(STORAGE_KEYS.categories, next);
+    return getCategories();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('ya existe')) {
+      return getCategories();
+    }
+    const next = [trimmed, ...items];
+    await setItem(STORAGE_KEYS.categories, next);
+    const pending = await getPendingCreates();
+    await setPendingCreates([trimmed, ...pending]);
+    return getCategories();
+  }
 }
 
 export async function updateCategory(previous: string, nextName: string): Promise<string[]> {
   const trimmed = normalize(nextName);
   if (!trimmed) {
+    return getCategories();
+  }
+  if (isBaseCategory(previous)) {
     return getCategories();
   }
   const items = await getItem<string[]>(STORAGE_KEYS.categories, []);
@@ -51,16 +203,57 @@ export async function updateCategory(previous: string, nextName: string): Promis
   if (exists) {
     return getCategories();
   }
+  const token = await getAuthToken();
   const updated = items.map((item) => (equalsIgnoreCase(item, previous) ? trimmed : item));
   await setItem(STORAGE_KEYS.categories, updated);
-  return getCategories();
+  if (!token) {
+    const pending = await getPendingUpdates();
+    await setPendingUpdates([{ from: previous, to: trimmed }, ...pending]);
+    return getCategories();
+  }
+  try {
+    await apiRequest(`/categories/${encodeURIComponent(previous)}`, {
+      method: 'PUT',
+      token,
+      body: { name: trimmed },
+    });
+    return getCategories();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('ya existe') || message.includes('no encontrada')) {
+      return getCategories();
+    }
+    const pending = await getPendingUpdates();
+    await setPendingUpdates([{ from: previous, to: trimmed }, ...pending]);
+    return getCategories();
+  }
 }
 
 export async function removeCategory(name: string): Promise<string[]> {
   const items = await getItem<string[]>(STORAGE_KEYS.categories, []);
+  if (isBaseCategory(name)) {
+    return getCategories();
+  }
+  const token = await getAuthToken();
   const next = items.filter((item) => !equalsIgnoreCase(item, name));
   await setItem(STORAGE_KEYS.categories, next);
-  return getCategories();
+  if (!token) {
+    const pending = await getPendingDeletes();
+    await setPendingDeletes([name, ...pending]);
+    return getCategories();
+  }
+  try {
+    await apiRequest(`/categories/${encodeURIComponent(name)}`, { method: 'DELETE', token });
+    return getCategories();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('en uso') || message.includes('no encontrada')) {
+      return getCategories();
+    }
+    const pending = await getPendingDeletes();
+    await setPendingDeletes([name, ...pending]);
+    return getCategories();
+  }
 }
 
 export function isBaseCategory(name: string): boolean {

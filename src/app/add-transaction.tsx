@@ -9,10 +9,9 @@ import { CurrencySelect } from '@/components/ui/currency-select';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SelectableOption } from '@/components/ui/selectable-option';
-import { paymentMethods as defaultPaymentMethods } from '@/constants/mock-data';
+import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
 import { Spacing } from '@/constants/theme';
 import { formatShortDate, toISODate } from '@/lib/finance';
-import { addPaymentMethod, getPaymentMethods } from '@/lib/payment-methods';
 import { addCategory, getCategories } from '@/lib/categories';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
@@ -46,7 +45,7 @@ export default function AddTransactionScreen() {
   const [customCategory, setCustomCategory] = useState('');
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [expenseCategories, setExpenseCategories] = useState<string[]>(EXPENSE_CATEGORIES);
-  const [methods, setMethods] = useState<string[]>(defaultPaymentMethods);
+  const [methods, setMethods] = useState<string[]>(BASE_PAYMENT_METHODS);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [customMethod, setCustomMethod] = useState('');
   const [useCustomMethod, setUseCustomMethod] = useState(false);
@@ -65,7 +64,7 @@ export default function AddTransactionScreen() {
     const loadMethods = async () => {
       const stored = await getPaymentMethods();
       if (!mounted) return;
-      const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+      const merged = Array.from(new Set([...stored, ...BASE_PAYMENT_METHODS]));
       setMethods(merged);
     };
     loadMethods();
@@ -81,7 +80,7 @@ export default function AddTransactionScreen() {
   useFocusEffect(
     React.useCallback(() => {
       getPaymentMethods().then((stored) => {
-        const merged = Array.from(new Set([...stored, ...defaultPaymentMethods]));
+        const merged = Array.from(new Set([...stored, ...BASE_PAYMENT_METHODS]));
         setMethods(merged);
       });
     }, [])
@@ -153,7 +152,7 @@ export default function AddTransactionScreen() {
 
     if (useCustomMethod && method) {
       const updated = await addPaymentMethod(method);
-      const merged = Array.from(new Set([...updated, ...defaultPaymentMethods]));
+      const merged = Array.from(new Set([...updated, ...BASE_PAYMENT_METHODS]));
       setMethods(merged);
       setSelectedMethod(method);
       setUseCustomMethod(false);

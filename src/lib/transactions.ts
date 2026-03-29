@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import { getCachedAuthState, loadAuthState } from '@/lib/auth';
+import { getCachedAuthState, invalidateSession, loadAuthState } from '@/lib/auth';
 import { getCachedAppSettings } from '@/lib/app-settings';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { Transaction, TransactionSystem } from '@/lib/types';
@@ -7,6 +7,73 @@ import { applyTransactionMeta, removeTransactionMeta, setTransactionMeta, Transa
 
 type TransactionsListener = () => void;
 const transactionsListeners = new Set<TransactionsListener>();
+
+async function getPendingCreates(): Promise<Transaction[]> {
+  return getItem<Transaction[]>(STORAGE_KEYS.transactionsPendingCreates, []);
+}
+
+async function setPendingCreates(items: Transaction[]) {
+  await setItem<Transaction[]>(STORAGE_KEYS.transactionsPendingCreates, items);
+}
+
+async function getPendingDeletes(): Promise<string[]> {
+  return getItem<string[]>(STORAGE_KEYS.transactionsPendingDeletes, []);
+}
+
+async function setPendingDeletes(items: string[]) {
+  await setItem<string[]>(STORAGE_KEYS.transactionsPendingDeletes, items);
+}
+
+async function syncPending(token: string, current: Transaction[]): Promise<Transaction[]> {
+  let next = current;
+
+  const pendingDeletes = await getPendingDeletes();
+  if (pendingDeletes.length > 0) {
+    const remainingDeletes: string[] = [];
+    for (const id of pendingDeletes) {
+      try {
+        await apiRequest(`/transactions/${id}`, { method: 'DELETE', token });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message.includes('Movimiento no encontrado')) {
+          continue;
+        }
+        remainingDeletes.push(id);
+      }
+    }
+    await setPendingDeletes(remainingDeletes);
+    next = next.filter((tx) => !pendingDeletes.includes(tx.id));
+  }
+
+  const pendingCreates = await getPendingCreates();
+  if (pendingCreates.length > 0) {
+    const remainingCreates: Transaction[] = [];
+    for (const item of pendingCreates) {
+      try {
+        const created = await apiRequest<Transaction>('/transactions', {
+          method: 'POST',
+          token,
+          body: {
+            type: item.type,
+            amount: item.amount,
+            currency: item.currency,
+            category: item.category,
+            date: item.date,
+            method: item.method,
+            note: item.note ?? '',
+            weekly: item.weekly ?? false,
+          },
+        });
+        next = [created, ...next.filter((tx) => tx.id !== item.id)];
+      } catch {
+        remainingCreates.push(item);
+      }
+    }
+    await setPendingCreates(remainingCreates);
+  }
+
+  return next;
+}
 
 function notifyTransactionsChanged() {
   transactionsListeners.forEach((listener) => {
@@ -53,26 +120,37 @@ export async function getTransactions(): Promise<Transaction[]> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    console.log('[transactions][get][local]', { count: items.length });
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
 
   try {
-    const items = await apiRequest<Transaction[]>('/transactions', {
+    let items = await apiRequest<Transaction[]>('/transactions', {
       method: 'GET',
       token,
     });
 
-    console.log('[transactions][get][api]', { count: items.length });
+    const pendingDeletes = await getPendingDeletes();
+    if (pendingDeletes.length > 0) {
+      items = items.filter((tx) => !pendingDeletes.includes(tx.id));
+    }
+    const pendingCreates = await getPendingCreates();
+    if (pendingCreates.length > 0) {
+      const existingIds = new Set(items.map((tx) => tx.id));
+      const mergedLocal = pendingCreates.filter((tx) => !existingIds.has(tx.id));
+      items = [...mergedLocal, ...items];
+    }
+
+    items = await syncPending(token, items);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, items);
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    console.log('[transactions][get][api-error]', { message });
+    if (message.includes('Token inválido') || message.includes('Token requerido')) {
+      await invalidateSession();
+    }
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    console.log('[transactions][get][local-fallback]', { count: items.length });
     const merged = await applyTransactionMeta(items);
     return normalizeTransactions(merged);
   }
@@ -120,6 +198,8 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
     const cached = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = [item, ...cached];
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
+    const pending = await getPendingCreates();
+    await setPendingCreates([item, ...pending]);
     if (meta) {
       await setTransactionMeta(item.id, meta);
     }
@@ -163,7 +243,6 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   const token = await getAuthToken();
   if (!token) {
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
-    console.log('[transactions][delete][local-only]', { id, count: items.length });
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
     await removeTransactionMeta(id);
@@ -172,12 +251,10 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   }
 
   try {
-    console.log('[transactions][delete][api-start]', { id });
     await apiRequest(`/transactions/${id}`, {
       method: 'DELETE',
       token,
     });
-    console.log('[transactions][delete][api-ok]', { id });
     const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
     const next = items.filter((tx) => tx.id !== id);
     await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
@@ -186,15 +263,22 @@ export async function deleteTransaction(id: string): Promise<boolean> {
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    console.log('[transactions][delete][api-error]', { id, message });
     if (message.includes('Movimiento no encontrado') || message.includes('No pudimos conectar')) {
       const items = await getItem<Transaction[]>(STORAGE_KEYS.transactions, []);
       const next = items.filter((tx) => tx.id !== id);
-      console.log('[transactions][delete][local-fallback]', { id, before: items.length, after: next.length });
       await setItem<Transaction[]>(STORAGE_KEYS.transactions, next);
       await removeTransactionMeta(id);
+      if (message.includes('No pudimos conectar')) {
+        const pendingDeletes = await getPendingDeletes();
+        if (!pendingDeletes.includes(id)) {
+          await setPendingDeletes([id, ...pendingDeletes]);
+        }
+      }
       notifyTransactionsChanged();
       return true;
+    }
+    if (message.includes('Token inválido') || message.includes('Token requerido')) {
+      await invalidateSession();
     }
     return false;
   }
