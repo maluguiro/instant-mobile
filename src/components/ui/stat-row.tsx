@@ -3,6 +3,7 @@ import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 
 type StatRowProps = ViewProps & {
@@ -13,7 +14,10 @@ type StatRowProps = ViewProps & {
 
 export function StatRow({ label, value, tone = 'neutral', style, ...rest }: StatRowProps) {
   const theme = useTheme();
-  const color = tone === 'positive' ? theme.success : theme.text;
+  const { state } = useDuo();
+  const isDuo = state.activeContext === 'duo';
+  const positiveColor = isDuo ? theme.duoAccent : theme.success;
+  const color = tone === 'positive' ? positiveColor : theme.text;
 
   return (
     <View {...rest} style={[styles.container, style]}>

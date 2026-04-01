@@ -3,6 +3,7 @@ import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 
 type PillProps = ViewProps & {
@@ -12,15 +13,19 @@ type PillProps = ViewProps & {
 
 export function Pill({ label, tone = 'default', style, ...rest }: PillProps) {
   const theme = useTheme();
-  const borderColor = tone === 'accent' ? theme.accent : theme.brand;
-  const textColor = theme.accent;
+  const { state: duoState } = useDuo();
+  const isDuo = duoState.activeContext === 'duo';
+  const accent = isDuo ? theme.duoAccent : theme.accent;
+  const soft = isDuo ? theme.duoSoft : theme.brandSoft;
+  const borderColor = tone === 'accent' ? accent : theme.brand;
+  const textColor = accent;
 
   return (
     <View
       {...rest}
       style={[
         styles.pill,
-        { backgroundColor: theme.brandSoft, borderColor },
+        { backgroundColor: soft, borderColor },
         style,
       ]}>
       <ThemedText type="small" style={[styles.text, { color: textColor }]}

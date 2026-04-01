@@ -23,6 +23,7 @@ import {
 } from '@/lib/finance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAppSettings } from '@/hooks/use-app-settings';
+import { useDuo } from '@/hooks/use-duo';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { addCategory, getCategories } from '@/lib/categories';
@@ -50,6 +51,12 @@ function getNativeDateTimePicker() {
 
 export default function MovementsScreen() {
   const theme = useTheme();
+  const { state: duoState } = useDuo();
+  const isDuo = duoState.activeContext === 'duo';
+  const incomeColor = isDuo ? theme.duoAccent : theme.success;
+  const expenseColor = isDuo ? (theme.duoAlt ?? theme.text) : theme.accent;
+  const primaryAction = isDuo ? theme.duoAccent : theme.brand;
+  const primaryActionSoft = isDuo ? (theme.duoSupport ?? theme.duoSoft) : theme.brandSoft;
   const { transactions, refresh, update, remove } = useTransactions();
   const { settings: appSettings } = useAppSettings();
   const params = useLocalSearchParams<{ edit?: string | string[] }>();
@@ -343,7 +350,7 @@ export default function MovementsScreen() {
             <ThemedText type="small" themeColor="textSecondary">
               Entradas
             </ThemedText>
-            <ThemedText type="smallBold" style={{ color: theme.success }}>
+            <ThemedText type="smallBold" style={{ color: incomeColor }}>
               {formatCurrency(summary.income, appSettings.currency)}
             </ThemedText>
           </View>
@@ -351,7 +358,7 @@ export default function MovementsScreen() {
             <ThemedText type="small" themeColor="textSecondary">
               Salidas
             </ThemedText>
-            <ThemedText type="smallBold" style={{ color: theme.accent }}>
+            <ThemedText type="smallBold" style={{ color: expenseColor }}>
               {formatCurrency(summary.expense, appSettings.currency)}
             </ThemedText>
           </View>
@@ -359,7 +366,7 @@ export default function MovementsScreen() {
             <ThemedText type="small" themeColor="textSecondary">
               Balance
             </ThemedText>
-            <ThemedText type="smallBold" style={{ color: balance >= 0 ? theme.success : theme.accent }}>
+            <ThemedText type="smallBold" style={{ color: balance >= 0 ? incomeColor : expenseColor }}>
               {formatCurrency(balance, appSettings.currency)}
             </ThemedText>
           </View>
@@ -405,7 +412,7 @@ export default function MovementsScreen() {
                 <SectionHeader title={formatShortDate(group.date)} />
                 <ThemedText
                   type="smallBold"
-                  style={{ color: total >= 0 ? theme.success : theme.accent }}>
+                  style={{ color: total >= 0 ? incomeColor : expenseColor }}>
                   {formatCurrency(total)}
                 </ThemedText>
               </View>
@@ -431,7 +438,7 @@ export default function MovementsScreen() {
                       <View style={styles.itemAmount}>
                         <ThemedText
                           type="smallBold"
-                          style={{ color: isIncome ? theme.success : theme.accent }}>
+                          style={{ color: isIncome ? incomeColor : expenseColor }}>
                           {isIncome ? '+' : '-'}{formatCurrency(item.amount, item.currency)}
                         </ThemedText>
                         {item.currency !== appSettings.currency ? (
@@ -607,8 +614,8 @@ export default function MovementsScreen() {
                     <Switch
                       value={editWeekly}
                       onValueChange={setEditWeekly}
-                      trackColor={{ false: theme.border, true: theme.brandSoft }}
-                      thumbColor={editWeekly ? theme.brand : theme.onBrand}
+                      trackColor={{ false: theme.border, true: primaryActionSoft }}
+                      thumbColor={editWeekly ? primaryAction : theme.onBrand}
                     />
                   </View>
                   <ThemedText type="small" themeColor="textSecondary">
@@ -631,7 +638,7 @@ export default function MovementsScreen() {
               </View>
 
               {editError ? (
-                <ThemedText type="small" style={{ color: theme.accent }}>
+                <ThemedText type="small" style={{ color: expenseColor }}>
                   {editError}
                 </ThemedText>
               ) : null}
@@ -652,10 +659,10 @@ export default function MovementsScreen() {
                   onPress={handleDelete}
                   style={({ pressed }) => [
                     styles.dangerButton,
-                    { borderColor: theme.accent },
+                    { borderColor: expenseColor },
                     pressed && styles.pressed,
                   ]}>
-                  <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                  <ThemedText type="smallBold" style={{ color: expenseColor }}>
                     Eliminar
                   </ThemedText>
                 </Pressable>
@@ -665,7 +672,7 @@ export default function MovementsScreen() {
                   onPress={handleSaveEdit}
                   style={({ pressed }) => [
                     styles.closeButton,
-                    { backgroundColor: theme.brand },
+                    { backgroundColor: primaryAction },
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
@@ -832,7 +839,7 @@ export default function MovementsScreen() {
                 onPress={() => setFiltersOpen(false)}
                 style={({ pressed }) => [
                   styles.closeButton,
-                  { backgroundColor: theme.brand },
+                  { backgroundColor: primaryAction },
                   pressed && styles.pressed,
                 ]}>
                 <ThemedText type="smallBold" style={{ color: theme.onBrand }}>

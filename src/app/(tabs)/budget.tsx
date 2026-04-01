@@ -1,4 +1,3 @@
-
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -131,8 +130,11 @@ function formatGoalPlan(goal: SavingsGoal) {
 export default function BudgetScreen() {
   const theme = useTheme();
   const { state: duoState } = useDuo();
+  const isDuo = duoState.activeContext === 'duo';
+  const primary = isDuo ? theme.duoAccent : theme.brand;
+  const primarySoft = isDuo ? (theme.duoSupport ?? theme.brandSoft) : theme.brandSoft;
   const { settings: appSettings } = useAppSettings();
-  const params = useLocalSearchParams<{ tab?: string }>();
+  const params = useLocalSearchParams<{ tab: string }>();
   const { settings, refresh, update } = useFinanceSettings();
   const { transactions, refresh: refreshTransactions, add } = useTransactions();
 
@@ -263,7 +265,10 @@ export default function BudgetScreen() {
     if (candidates.length === 0) return null;
     return candidates.reduce((latest, current) => {
       if (current.date > latest.date) return current;
-      if (current.date === latest.date && (current.createdAt ?? '') > (latest.createdAt ?? '')) {
+      if (
+        current.date === latest.date &&
+        (current.createdAt ?? '') > (latest.createdAt ?? '')
+      ) {
         return current;
       }
       return latest;
@@ -334,7 +339,11 @@ export default function BudgetScreen() {
   useEffect(() => {
     if (savingsFrequency === 'manual') {
       setSavingsManualAmount((prev) =>
-        prev.trim() ? prev : savingsSuggested > 0 ? String(Math.round(savingsSuggested)) : ''
+        prev.trim()
+          ? prev
+          : savingsSuggested > 0
+            ? String(Math.round(savingsSuggested))
+            : ''
       );
     }
   }, [savingsFrequency, savingsSuggested]);
@@ -342,7 +351,11 @@ export default function BudgetScreen() {
   useEffect(() => {
     if (weeklyRenewal === 'manual') {
       setWeeklyManualAmount((prev) =>
-        prev.trim() ? prev : parseAmount(weeklyAmount) > 0 ? weeklyAmount : ''
+        prev.trim()
+          ? prev
+          : parseAmount(weeklyAmount) > 0
+            ? weeklyAmount
+            : ''
       );
     }
   }, [weeklyRenewal, weeklyAmount]);
@@ -381,17 +394,14 @@ export default function BudgetScreen() {
 
   const goalSummaryData = useMemo(() => {
     const currencies = Array.from(
-      new Set(safeGoals.map((goal) => goal.currency ?? appCurrency))
+      new Set(safeGoals.map((goal) => goal.currency))
     );
-    const normalizedCurrencies =
-      currencies.length > 0
-        ? currencies.includes(appCurrency)
-          ? [
-              appCurrency,
-              ...currencies.filter((currency) => currency !== appCurrency),
-            ]
-          : currencies
-        : [appCurrency];
+    const normalizedCurrencies = currencies.includes(appCurrency)
+      ? [
+          appCurrency,
+          ...currencies.filter((currency) => currency !== appCurrency),
+        ]
+      : currencies;
 
     return normalizedCurrencies.map((currency) => {
       const items = safeGoals.filter((goal) => goal.currency === currency);
@@ -408,7 +418,7 @@ export default function BudgetScreen() {
 
   const safeGoalSummaryData = Array.isArray(goalSummaryData) ? goalSummaryData : [];
   const goalSummaryCount = safeGoalSummaryData.length;
-  const goalsCount = goalsCount;
+  const goalsCount = safeGoals.length;
 
   useEffect(() => {
     if (goalSummaryIndex >= goalSummaryCount) {
@@ -476,7 +486,8 @@ export default function BudgetScreen() {
       weeklyCustomDay,
       weeklyEveryDays: weeklyEvery,
       weeklyRolloverMode,
-      weeklyRolloverGoalId: weeklyRolloverMode === 'goal' ? weeklyRolloverGoalId || undefined : undefined,
+      weeklyRolloverGoalId:
+        weeklyRolloverMode === 'goal' ? weeklyRolloverGoalId || undefined : undefined,
       weeklyLastRenewedAt: shouldResetWeekly ? null : settings.weeklyLastRenewedAt,
       weeklyLastRenewalAmount: shouldResetWeekly ? 0 : settings.weeklyLastRenewalAmount,
     };
@@ -631,7 +642,7 @@ export default function BudgetScreen() {
     const target = Math.max(parseAmount(goalTarget), 0);
     const savedInput = Math.max(parseAmount(goalSaved), 0);
     const saved =
-      editingGoalId && goalSaved.trim() === '' ? editingGoal?.saved ?? 0 : savedInput;
+      editingGoalId && goalSaved.trim() === '' ? (editingGoal?.saved ?? 0) : savedInput;
     if (!title || !target) {
       Alert.alert('Completá la meta', 'Agregá un nombre y un monto objetivo válido.');
       return;
@@ -768,7 +779,7 @@ export default function BudgetScreen() {
   const savingsProgressTarget = savingsTarget > 0 ? savingsTarget : monthAvailable.savingsTotal;
   const savingsProgressValue =
     savingsProgressTarget > 0 ? monthAvailable.savingsTotal / savingsProgressTarget : 0;
-  const savePlanColor = savePlanDone ? theme.brandSoft : theme.brand;
+  const savePlanColor = savePlanDone ? primarySoft : primary;
   const savePlanTextColor = savePlanDone ? theme.text : theme.onBrand;
 
   return (
@@ -795,13 +806,13 @@ export default function BudgetScreen() {
             />
           ))}
         </View>
-        {hasOtherCurrencyTransactions ? (
+        {hasOtherCurrencyTransactions && (
           <ThemedText type="small" themeColor="textSecondary">
             Totales calculados en {appCurrency}. Hay movimientos en otras monedas.
           </ThemedText>
-        ) : null}
+        )}
 
-        {activeTab === 'Ahorro' ? (
+        {activeTab === 'Ahorro' && (
           <View style={styles.sectionBody}>
             <Card variant="soft" style={styles.innerCard}>
               <SectionHeader title="Modo de ahorro" />
@@ -822,7 +833,7 @@ export default function BudgetScreen() {
                   onPress={() => setSavingsMode('manual')}
                 />
               </View>
-              {savingsMode === 'fixed' ? (
+              {savingsMode === 'fixed' && (
                 <View style={styles.inlineAmountRow}>
                   <TextInput
                     placeholder="0"
@@ -840,8 +851,8 @@ export default function BudgetScreen() {
                     label=""
                   />
                 </View>
-              ) : null}
-              {savingsMode === 'percent' ? (
+              )}
+              {savingsMode === 'percent' && (
                 <TextInput
                   placeholder="0%"
                   placeholderTextColor={theme.textSecondary}
@@ -850,20 +861,20 @@ export default function BudgetScreen() {
                   onChangeText={setSavingsPercent}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {savingsMode === 'manual' ? (
+              )}
+              {savingsMode === 'manual' && (
                 <ThemedText type="small" themeColor="textSecondary">
                   Vas a reservar ahorro cuando lo decidas.
                 </ThemedText>
-              ) : null}
-              {savingsMode !== 'fixed' ? (
+              )}
+              {savingsMode !== 'fixed' && (
                 <View style={styles.currencyRow}>
                   <CurrencySelect value={savingsCurrency} onChange={setSavingsCurrency} compact label="" />
                   <ThemedText type="small" themeColor="textSecondary">
                     Moneda del ahorro
                   </ThemedText>
                 </View>
-              ) : null}
+              )}
             </Card>
 
             <Card variant="soft" style={styles.innerCard}>
@@ -890,7 +901,7 @@ export default function BudgetScreen() {
                   onPress={() => setSavingsFrequency('manual')}
                 />
               </View>
-              {savingsFrequency === 'monthly' ? (
+              {savingsFrequency === 'monthly' && (
                 <TextInput
                   placeholder="Día del mes (1-31)"
                   placeholderTextColor={theme.textSecondary}
@@ -899,8 +910,8 @@ export default function BudgetScreen() {
                   onChangeText={setSavingsMonthDay}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {savingsFrequency === 'weekly' ? (
+              )}
+              {savingsFrequency === 'weekly' && (
                 <View style={styles.daysRow}>
                   {WEEK_DAYS.map((day) => (
                     <SelectableOption
@@ -911,8 +922,8 @@ export default function BudgetScreen() {
                     />
                   ))}
                 </View>
-              ) : null}
-              {savingsFrequency === 'everyX' ? (
+              )}
+              {savingsFrequency === 'everyX' && (
                 <TextInput
                   placeholder="Cada 30 días"
                   placeholderTextColor={theme.textSecondary}
@@ -921,8 +932,8 @@ export default function BudgetScreen() {
                   onChangeText={setSavingsEveryDays}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {savingsFrequency === 'manual' ? (
+              )}
+              {savingsFrequency === 'manual' && (
                 <View style={styles.manualAction}>
                   <ThemedText type="small" themeColor="textSecondary">
                     El ahorro no se debita automáticamente. Vos decidís cuándo reservarlo.
@@ -939,15 +950,15 @@ export default function BudgetScreen() {
                     onPress={handleManualSavings}
                     style={({ pressed }) => [
                       styles.actionButton,
-                      { backgroundColor: theme.brand },
+                      { backgroundColor: primary },
                       pressed && styles.buttonPressed,
                     ]}>
-                      <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
-                        {manualSavingsDone ? 'Registrado' : 'Debitar para ahorro'}
-                      </ThemedText>
+                    <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
+                      {manualSavingsDone ? 'Registrado' : 'Debitar para ahorro'}
+                    </ThemedText>
                   </Pressable>
                 </View>
-              ) : null}
+              )}
             </Card>
 
             <Card variant="soft" style={styles.summaryCard}>
@@ -967,15 +978,15 @@ export default function BudgetScreen() {
                 </ThemedText>
               </View>
               <ProgressBar value={savingsProgressValue} />
+              <ThemedText type="small" themeColor="textSecondary">
+                Reservado este período: {formatCurrency(monthAvailable.savingsReserved, savingsCurrency)}
+              </ThemedText>
+              {savingsCurrency !== appCurrency && (
                 <ThemedText type="small" themeColor="textSecondary">
-                  Reservado este período: {formatCurrency(monthAvailable.savingsReserved, savingsCurrency)}
+                  Ahorro en {savingsCurrency}. No se descuenta del disponible en {appCurrency}.
                 </ThemedText>
-                {savingsCurrency !== appCurrency ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Ahorro en {savingsCurrency}. No se descuenta del disponible en {appCurrency}.
-                  </ThemedText>
-                ) : null}
-              </Card>
+              )}
+            </Card>
 
             <Pressable
               onPress={handleClearSavings}
@@ -989,9 +1000,9 @@ export default function BudgetScreen() {
               </ThemedText>
             </Pressable>
           </View>
-        ) : null}
+        )}
 
-        {activeTab === 'Semanal' ? (
+        {activeTab === 'Semanal' && (
           <View style={styles.sectionBody}>
             <Card variant="soft" style={styles.innerCard}>
               <SectionHeader title="Modo semanal" />
@@ -1007,7 +1018,7 @@ export default function BudgetScreen() {
                   onPress={() => setWeeklyMode('manual')}
                 />
               </View>
-              {weeklyMode === 'fixed' ? (
+              {weeklyMode === 'fixed' && (
                 <TextInput
                   placeholder="$0"
                   placeholderTextColor={theme.textSecondary}
@@ -1016,12 +1027,12 @@ export default function BudgetScreen() {
                   onChangeText={setWeeklyAmount}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {weeklyMode === 'manual' ? (
+              )}
+              {weeklyMode === 'manual' && (
                 <ThemedText type="small" themeColor="textSecondary">
                   La app no habilita automáticamente el monto semanal. Vos decidís cuándo activarlo.
                 </ThemedText>
-              ) : null}
+              )}
             </Card>
 
             <Card variant="soft" style={styles.innerCard}>
@@ -1048,7 +1059,7 @@ export default function BudgetScreen() {
                   onPress={() => setWeeklyRenewal('manual')}
                 />
               </View>
-              {weeklyRenewal === 'custom' ? (
+              {weeklyRenewal === 'custom' && (
                 <View style={styles.daysRow}>
                   {WEEK_DAYS.map((day) => (
                     <SelectableOption
@@ -1059,8 +1070,8 @@ export default function BudgetScreen() {
                     />
                   ))}
                 </View>
-              ) : null}
-              {weeklyRenewal === 'everyX' ? (
+              )}
+              {weeklyRenewal === 'everyX' && (
                 <TextInput
                   placeholder="Cada 7 días"
                   placeholderTextColor={theme.textSecondary}
@@ -1069,7 +1080,7 @@ export default function BudgetScreen() {
                   onChangeText={setWeeklyEveryDays}
                   keyboardType="numeric"
                 />
-              ) : null}
+              )}
               {(weeklyRenewal === 'manual' || weeklyMode === 'manual') && (
                 <View style={styles.manualAction}>
                   <ThemedText type="small" themeColor="textSecondary">
@@ -1087,12 +1098,12 @@ export default function BudgetScreen() {
                     onPress={handleManualWeeklyEnable}
                     style={({ pressed }) => [
                       styles.actionButton,
-                      { backgroundColor: theme.brand },
+                      { backgroundColor: primary },
                       pressed && styles.buttonPressed,
                     ]}>
-                      <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
-                        {weeklyManualDone ? 'Habilitado' : 'Habilitar disponible semanal'}
-                      </ThemedText>
+                    <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
+                      {weeklyManualDone ? 'Habilitado' : 'Habilitar disponible semanal'}
+                    </ThemedText>
                   </Pressable>
                 </View>
               )}
@@ -1120,7 +1131,7 @@ export default function BudgetScreen() {
                   onPress={() => setWeeklyRolloverMode('goal')}
                 />
               </View>
-              {weeklyRolloverMode === 'goal' ? (
+              {weeklyRolloverMode === 'goal' && (
                 <View style={styles.goalSelectRow}>
                   {safeGoals.filter((goal) => goal.currency === appCurrency).length === 0 ? (
                     <ThemedText type="small" themeColor="textSecondary">
@@ -1139,7 +1150,7 @@ export default function BudgetScreen() {
                       ))
                   )}
                 </View>
-              ) : null}
+              )}
             </Card>
 
             <Card variant="soft" style={styles.summaryCard}>
@@ -1182,9 +1193,9 @@ export default function BudgetScreen() {
               </ThemedText>
             </Pressable>
           </View>
-        ) : null}
+        )}
 
-        {activeTab === 'Metas' ? (
+        {activeTab === 'Metas' && (
           <View style={styles.sectionBody}>
             <Card variant="soft" style={styles.summaryCard}>
               <View
@@ -1217,7 +1228,7 @@ export default function BudgetScreen() {
                         </ThemedText>
                         <View style={styles.summaryCurrencyHint}>
                           <Pill label={entry.currency} tone="accent" />
-                          {goalSummaryCount > 1 ? (
+                          {goalSummaryCount > 1 && (
                             <View style={styles.summaryDotRow}>
                               {safeGoalSummaryData.map((item, index) => (
                                 <View
@@ -1226,13 +1237,13 @@ export default function BudgetScreen() {
                                     styles.summaryDot,
                                     {
                                       backgroundColor:
-                                        index === goalSummaryIndex ? theme.brand : theme.border,
+                                        index === goalSummaryIndex ? primary : theme.border,
                                     },
                                   ]}
                                 />
                               ))}
                             </View>
-                          ) : null}
+                          )}
                         </View>
                       </View>
                       <View style={styles.goalSummaryRow}>
@@ -1282,13 +1293,13 @@ export default function BudgetScreen() {
                     <ThemedText type="small" themeColor="textSecondary">
                       {formatGoalPlan(goal)}
                     </ThemedText>
-                    {goal.currency !== appCurrency ? (
+                    {goal.currency !== appCurrency && (
                       <ThemedText type="small" themeColor="textSecondary">
                         Moneda: {goal.currency}
                       </ThemedText>
-                    ) : null}
-                    <ProgressBar value={goal.target ? goal.saved / goal.target : 0} />
-                    {goal.mode === 'manual' || goal.frequency === 'manual' ? (
+                    )}
+                    <ProgressBar value={goal.target > 0 ? goal.saved / goal.target : 0} />
+                    {(goal.mode === 'manual' || goal.frequency === 'manual') && (
                       <View style={styles.goalAction}>
                         <TextInput
                           placeholder={`Monto a aportar (${goal.currency})`}
@@ -1304,7 +1315,7 @@ export default function BudgetScreen() {
                           onPress={() => handleContributeToGoal(goal.id)}
                           style={({ pressed }) => [
                             styles.actionButton,
-                            { backgroundColor: theme.brand },
+                            { backgroundColor: primary },
                             pressed && styles.buttonPressed,
                           ]}>
                           <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
@@ -1312,7 +1323,7 @@ export default function BudgetScreen() {
                           </ThemedText>
                         </Pressable>
                       </View>
-                    ) : null}
+                    )}
                     <View style={styles.goalActionsRow}>
                       <Pressable
                         onPress={() => handleEditGoal(goal)}
@@ -1399,7 +1410,7 @@ export default function BudgetScreen() {
                   onPress={() => setGoalMode('manual')}
                 />
               </View>
-              {goalMode === 'fixed' ? (
+              {goalMode === 'fixed' && (
                 <TextInput
                   placeholder="$0"
                   placeholderTextColor={theme.textSecondary}
@@ -1408,8 +1419,8 @@ export default function BudgetScreen() {
                   onChangeText={setGoalFixedAmount}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {goalMode === 'percent' ? (
+              )}
+              {goalMode === 'percent' && (
                 <TextInput
                   placeholder="0%"
                   placeholderTextColor={theme.textSecondary}
@@ -1418,7 +1429,7 @@ export default function BudgetScreen() {
                   onChangeText={setGoalPercent}
                   keyboardType="numeric"
                 />
-              ) : null}
+              )}
 
               <SectionHeader title="Frecuencia" />
               <View style={styles.optionRow}>
@@ -1443,7 +1454,7 @@ export default function BudgetScreen() {
                   onPress={() => setGoalFrequency('manual')}
                 />
               </View>
-              {goalFrequency === 'monthly' ? (
+              {goalFrequency === 'monthly' && (
                 <TextInput
                   placeholder="Día del mes (1-31)"
                   placeholderTextColor={theme.textSecondary}
@@ -1452,8 +1463,8 @@ export default function BudgetScreen() {
                   onChangeText={setGoalMonthDay}
                   keyboardType="numeric"
                 />
-              ) : null}
-              {goalFrequency === 'weekly' ? (
+              )}
+              {goalFrequency === 'weekly' && (
                 <View style={styles.daysRow}>
                   {WEEK_DAYS.map((day) => (
                     <SelectableOption
@@ -1464,8 +1475,8 @@ export default function BudgetScreen() {
                     />
                   ))}
                 </View>
-              ) : null}
-              {goalFrequency === 'everyX' ? (
+              )}
+              {goalFrequency === 'everyX' && (
                 <TextInput
                   placeholder="Cada 30 días"
                   placeholderTextColor={theme.textSecondary}
@@ -1474,7 +1485,7 @@ export default function BudgetScreen() {
                   onChangeText={setGoalEveryDays}
                   keyboardType="numeric"
                 />
-              ) : null}
+              )}
 
               <Card variant="soft" style={styles.summaryCard}>
                 <ThemedText type="small" themeColor="textSecondary">
@@ -1494,7 +1505,7 @@ export default function BudgetScreen() {
                   onPress={handleSaveGoal}
                   style={({ pressed }) => [
                     styles.saveButton,
-                    { backgroundColor: theme.brand },
+                    { backgroundColor: primary },
                     pressed && styles.buttonPressed,
                   ]}>
                   <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
@@ -1507,7 +1518,7 @@ export default function BudgetScreen() {
                         : 'Guardar meta'}
                   </ThemedText>
                 </Pressable>
-                {editingGoalId ? (
+                {editingGoalId && (
                   <Pressable
                     onPress={resetGoalForm}
                     style={({ pressed }) => [
@@ -1519,13 +1530,13 @@ export default function BudgetScreen() {
                       Cancelar edición
                     </ThemedText>
                   </Pressable>
-                ) : null}
+                )}
               </View>
             </Card>
           </View>
-        ) : null}
+        )}
 
-        {activeTab !== 'Metas' ? (
+        {activeTab !== 'Metas' && (
           <Pressable
             onPress={handleSavePlan}
             style={({ pressed }) => [
@@ -1537,7 +1548,7 @@ export default function BudgetScreen() {
               {savePlanDone ? 'Plan guardado' : 'Guardar plan'}
             </ThemedText>
           </Pressable>
-        ) : null}
+        )}
       </Card>
     </Screen>
   );
@@ -1735,9 +1746,3 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
-
-
-
-
-
-

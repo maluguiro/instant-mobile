@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,7 +21,8 @@ export function Screen({ children, scroll = true, contentStyle, style }: ScreenP
   const { state: duoState } = useDuo();
   const insets = useSafeAreaInsets();
 
-  const containerStyle = [styles.container, { backgroundColor: theme.background }, style];
+  const duoBackground = duoState.activeContext === 'duo' ? theme.duoBackground : theme.background;
+  const containerStyle = [styles.container, { backgroundColor: duoBackground }, style];
   const innerStyle = [
     styles.content,
     {
@@ -34,11 +35,16 @@ export function Screen({ children, scroll = true, contentStyle, style }: ScreenP
   ];
 
   const showDuo = duoState.activeContext === 'duo' && Boolean(duoState.duoId);
-  const duoBadge = showDuo ? (
-    <View style={[styles.duoBadge, { borderColor: theme.duoAccent, backgroundColor: theme.duoSoft }]}>
-      <ThemedText type="smallBold" style={{ color: theme.duoAccent }}>
-        Duo activo
-      </ThemedText>
+  const duoStrip = showDuo ? (
+    <View style={[styles.duoStrip, { backgroundColor: theme.duoSoft, borderColor: theme.duoBorder }]}>
+      <View style={styles.duoStripInner}>
+        <View style={[styles.duoDot, { backgroundColor: theme.duoAccent }]} />
+        <View style={styles.duoStripText}>
+          <ThemedText type="smallBold" style={{ color: theme.text }}>
+            Estás en Instant Duo
+          </ThemedText>
+        </View>
+      </View>
     </View>
   ) : null;
 
@@ -46,7 +52,7 @@ export function Screen({ children, scroll = true, contentStyle, style }: ScreenP
     return (
       <View style={containerStyle}>
         <View style={innerStyle}>
-          {duoBadge}
+          {duoStrip}
           {children}
         </View>
       </View>
@@ -55,7 +61,7 @@ export function Screen({ children, scroll = true, contentStyle, style }: ScreenP
 
   return (
     <ScrollView style={containerStyle} contentContainerStyle={innerStyle}>
-      {duoBadge}
+      {duoStrip}
       {children}
     </ScrollView>
   );
@@ -71,11 +77,26 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: Spacing.four,
   },
-  duoBadge: {
-    alignSelf: 'flex-start',
+  duoStrip: {
+    alignSelf: 'stretch',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.three,
     borderWidth: 1,
+  },
+  duoStripInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  duoDot: {
+    width: 8,
+    height: 8,
     borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+  },
+  duoStripText: {
+    flex: 1,
   },
 });
+
+

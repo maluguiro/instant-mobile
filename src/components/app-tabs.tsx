@@ -7,13 +7,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Colors } from '@/constants/theme';
+import { useDuo } from '@/hooks/use-duo';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { state: duoState } = useDuo();
+  const duoActive = duoState.activeContext === 'duo';
   const insets = useSafeAreaInsets();
   const fabBottom = BottomTabInset + Math.max(insets.bottom, 10) + 10;
   const fabScale = React.useRef(new Animated.Value(1)).current;
+  const fabColor = duoActive ? colors.duoAccent : colors.brand;
+  const fabSoft = duoActive ? colors.duoSoft : colors.brandSoft;
+  const tabActive = duoActive ? colors.duoAccent : colors.text;
 
   return (
     <View style={styles.container}>
@@ -22,12 +28,12 @@ export default function AppTabs() {
           headerShown: false,
           tabBarStyle: {
             backgroundColor: colors.background,
-            borderTopColor: colors.border,
+            borderTopColor: duoActive ? colors.duoAccent : colors.border,
             height: 64 + insets.bottom,
             paddingBottom: Math.max(insets.bottom, 8),
             paddingTop: 8,
           },
-          tabBarActiveTintColor: colors.text,
+          tabBarActiveTintColor: tabActive,
           tabBarInactiveTintColor: colors.textSecondary,
           tabBarLabelStyle: {
             fontSize: 12,
@@ -93,13 +99,13 @@ export default function AppTabs() {
           style={({ pressed }) => [
             styles.fab,
             {
-              backgroundColor: colors.brand,
+              backgroundColor: fabColor,
               bottom: fabBottom,
               opacity: pressed ? 0.92 : 1,
             },
           ]}>
           <ThemedText style={[styles.fabText, { color: colors.onBrand }]}>+</ThemedText>
-          <ThemedView style={[styles.fabLabel, { backgroundColor: colors.brandSoft }]}>
+          <ThemedView style={[styles.fabLabel, { backgroundColor: fabSoft }]}>
             <Text style={styles.fabLabelText}>Agregar</Text>
           </ThemedView>
         </Pressable>

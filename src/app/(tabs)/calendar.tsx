@@ -96,6 +96,10 @@ async function openGoogleCalendarEvent(title: string, dateStr: string, details?:
 export default function CalendarScreen() {
   const theme = useTheme();
   const { state: duoState } = useDuo();
+  const isDuo = duoState.activeContext === 'duo';
+  const primary = isDuo ? theme.duoAccent : theme.brand;
+  const primarySoft = isDuo ? (theme.duoSupport ?? theme.brandSoft) : theme.brandSoft;
+  const accentAlt = isDuo ? (theme.duoAlt ?? theme.accent) : theme.accent;
   const { settings: appSettings, update } = useAppSettings();
   const params = useLocalSearchParams<{ tab?: string }>();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
@@ -583,7 +587,7 @@ export default function CalendarScreen() {
           onPress={handleOpenAdd}
           style={({ pressed }) => [
             styles.addButton,
-            { backgroundColor: theme.brand },
+            { backgroundColor: primary },
             pressed && styles.pressed,
           ]}>
           <ThemedText type="smallBold" style={[styles.addText, { color: theme.onBrand }]}>
@@ -606,7 +610,7 @@ export default function CalendarScreen() {
                 const statusLabel =
                   remaining <= 0 ? 'Hoy' : remaining <= 3 ? 'Pronto' : `En ${remaining} días`;
                 const statusColor =
-                  remaining <= 0 ? theme.accent : remaining <= 3 ? theme.warning : theme.textSecondary;
+                  remaining <= 0 ? accentAlt : remaining <= 3 ? theme.warning : theme.textSecondary;
                 const dateLabel =
                   item.source === 'due'
                     ? 'Próximo vencimiento'
@@ -635,7 +639,7 @@ export default function CalendarScreen() {
                       {item.source === 'due' ? (
                         <View style={styles.actionRow}>
                           <Pressable onPress={() => handleMarkDuePaid(item.id)} style={styles.actionButton}>
-                            <ThemedText type="small" style={{ color: theme.brand }}>
+                            <ThemedText type="small" style={{ color: primary }}>
                               Marcar pagado
                             </ThemedText>
                           </Pressable>
@@ -713,7 +717,7 @@ export default function CalendarScreen() {
                           <Pressable
                             onPress={() => updateRecurringStatus(item.id, 'paused')}
                             style={styles.actionButton}>
-                            <ThemedText type="small" style={{ color: theme.brand }}>
+                            <ThemedText type="small" style={{ color: primary }}>
                               Pausar
                             </ThemedText>
                           </Pressable>
@@ -721,7 +725,7 @@ export default function CalendarScreen() {
                           <Pressable
                             onPress={() => updateRecurringStatus(item.id, 'active')}
                             style={styles.actionButton}>
-                            <ThemedText type="small" style={{ color: theme.brand }}>
+                            <ThemedText type="small" style={{ color: primary }}>
                               Reanudar
                             </ThemedText>
                           </Pressable>
@@ -784,7 +788,7 @@ export default function CalendarScreen() {
                     </ThemedText>
                     <View style={styles.actionRow}>
                       <Pressable onPress={() => handleRegisterInstallment(item.id)} style={styles.actionButton}>
-                        <ThemedText type="small" style={{ color: theme.brand }}>
+                        <ThemedText type="small" style={{ color: primary }}>
                           Registrar cuota
                         </ThemedText>
                       </Pressable>
@@ -936,8 +940,8 @@ export default function CalendarScreen() {
                     onValueChange={(value) =>
                       handleImportantToggle(value, setDueImportant, () => setDueCalendarExport(false))
                     }
-                    trackColor={{ false: theme.border, true: theme.brandSoft }}
-                    thumbColor={dueImportant ? theme.brand : theme.onBrand}
+                    trackColor={{ false: theme.border, true: primarySoft }}
+                    thumbColor={dueImportant ? primary : theme.onBrand}
                   />
                 </View>
                 {dueImportant ? (
@@ -948,8 +952,8 @@ export default function CalendarScreen() {
                     <Switch
                       value={dueCalendarExport}
                       onValueChange={setDueCalendarExport}
-                      trackColor={{ false: theme.border, true: theme.brandSoft }}
-                      thumbColor={dueCalendarExport ? theme.brand : theme.onBrand}
+                      trackColor={{ false: theme.border, true: primarySoft }}
+                      thumbColor={dueCalendarExport ? primary : theme.onBrand}
                     />
                   </View>
                 ) : null}
@@ -1138,8 +1142,8 @@ export default function CalendarScreen() {
                     onValueChange={(value) =>
                       handleImportantToggle(value, setRecImportant, () => setRecCalendarExport(false))
                     }
-                    trackColor={{ false: theme.border, true: theme.brandSoft }}
-                    thumbColor={recImportant ? theme.brand : theme.onBrand}
+                    trackColor={{ false: theme.border, true: primarySoft }}
+                    thumbColor={recImportant ? primary : theme.onBrand}
                   />
                 </View>
                 {recImportant ? (
@@ -1150,8 +1154,8 @@ export default function CalendarScreen() {
                     <Switch
                       value={recCalendarExport}
                       onValueChange={setRecCalendarExport}
-                      trackColor={{ false: theme.border, true: theme.brandSoft }}
-                      thumbColor={recCalendarExport ? theme.brand : theme.onBrand}
+                      trackColor={{ false: theme.border, true: primarySoft }}
+                      thumbColor={recCalendarExport ? primary : theme.onBrand}
                     />
                   </View>
                 ) : null}
@@ -1267,8 +1271,8 @@ export default function CalendarScreen() {
                     onValueChange={(value) =>
                       handleImportantToggle(value, setInstImportant, () => setInstCalendarExport(false))
                     }
-                    trackColor={{ false: theme.border, true: theme.brandSoft }}
-                    thumbColor={instImportant ? theme.brand : theme.onBrand}
+                    trackColor={{ false: theme.border, true: primarySoft }}
+                    thumbColor={instImportant ? primary : theme.onBrand}
                   />
                 </View>
                 {instImportant ? (
@@ -1279,8 +1283,8 @@ export default function CalendarScreen() {
                     <Switch
                       value={instCalendarExport}
                       onValueChange={setInstCalendarExport}
-                      trackColor={{ false: theme.border, true: theme.brandSoft }}
-                      thumbColor={instCalendarExport ? theme.brand : theme.onBrand}
+                      trackColor={{ false: theme.border, true: primarySoft }}
+                      thumbColor={instCalendarExport ? primary : theme.onBrand}
                     />
                   </View>
                 ) : null}
@@ -1311,7 +1315,7 @@ export default function CalendarScreen() {
                 onPress={handleSave}
                 style={({ pressed }) => [
                   styles.primaryButton,
-                  { backgroundColor: theme.brand },
+                  { backgroundColor: primary },
                   pressed && styles.pressed,
                 ]}>
                 <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
@@ -1362,7 +1366,7 @@ export default function CalendarScreen() {
                   onPress={handleAddOption}
                   style={({ pressed }) => [
                     styles.primaryButton,
-                    { backgroundColor: theme.brand },
+                    { backgroundColor: primary },
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
@@ -1559,4 +1563,5 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
 

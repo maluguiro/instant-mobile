@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#2C1F1A',
+    text: '#171717',
     background: '#F6EEE4',
     backgroundElement: '#FFF8F2',
     backgroundSelected: '#F0E2D4',
@@ -24,8 +24,12 @@ export const Colors = {
     border: '#E6D4C2',
     card: '#FFF8F2',
     cardAlt: '#F3E5D7',
-    duoAccent: '#C69FD5',
-    duoSoft: '#FDFDC9',
+    duoAccent: '#E5715C',
+    duoSoft: '#FFF3E8',
+    duoSupport: '#F6C763',
+    duoAlt: '#F2936D',
+    duoBackground: '#F6E1E4',
+    duoBorder: '#E5C9C0',
   },
   dark: {
     text: '#F7EEE6',
@@ -43,12 +47,40 @@ export const Colors = {
     border: '#3A2C26',
     card: '#211915',
     cardAlt: '#2A1F1B',
-    duoAccent: '#C69FD5',
-    duoSoft: '#FDFDC9',
+    duoAccent: '#E5715C',
+    duoSoft: '#3A2A1E',
+    duoSupport: '#6B5A2E',
+    duoAlt: '#8A4B36',
+    duoBackground: '#2A1E1A',
+    duoBorder: '#3C2E28',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+
+export interface ThemeColors {
+  text: string;
+  background: string;
+  backgroundElement: string;
+  backgroundSelected: string;
+  textSecondary: string;
+  brand: string;
+  onBrand: string;
+  brandSoft: string;
+  accent: string;
+  accentSoft: string;
+  success: string;
+  warning: string;
+  border: string;
+  card: string;
+  cardAlt: string;
+  duoAccent: string;
+  duoSoft: string;
+  duoSupport: string;
+  duoAlt: string;
+  duoBackground: string;
+  duoBorder: string;
+}
 
 export const Fonts = Platform.select({
   ios: {

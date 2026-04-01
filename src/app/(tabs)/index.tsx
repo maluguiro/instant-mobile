@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+﻿import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -39,7 +39,7 @@ import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 export default function HomeScreen() {
   const theme = useTheme();
   const { user } = useAuth();
-  const { state: duoState } = useDuo();
+  const { state: duoState, setContext } = useDuo();
   const { transactions, refresh } = useTransactions();
   const { settings, refresh: refreshSettings } = useFinanceSettings();
   const { settings: appSettings } = useAppSettings();
@@ -52,6 +52,10 @@ export default function HomeScreen() {
   const [summaryWidth, setSummaryWidth] = useState(0);
   const mainCarouselRef = useRef<ScrollView>(null);
   const summaryCarouselRef = useRef<ScrollView>(null);
+  const isDuo = duoState.activeContext === 'duo';
+  const headerTitle = isDuo
+    ? `${user?.name ?? 'Vos'} + Duo`
+    : `Hola, ${user?.name ?? 'bienvenida'}`;
 
   useFocusEffect(
     useCallback(() => {
@@ -142,7 +146,10 @@ export default function HomeScreen() {
 
   const latestWeeklyRenewal = useMemo(() => {
     const candidates = currencyTransactions.filter(
-      (tx) => tx.system === 'weekly-renewal' || tx.category === 'Renovación semanal'
+      (tx) =>
+        tx.system === 'weekly-renewal' ||
+        tx.category === 'Renovación semanal' ||
+        tx.category === 'RenovaciÃ³n semanal'
     );
     if (candidates.length === 0) return null;
     return candidates.reduce((latest, current) => {
@@ -224,7 +231,7 @@ export default function HomeScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <ThemedText type="subtitle">Hola, {user?.name ?? 'bienvenida'}</ThemedText>
+          <ThemedText type="subtitle">{headerTitle}</ThemedText>
           <View style={styles.toggleRow}>
             <DuoToggle />
             <ThemeToggle />
@@ -235,7 +242,12 @@ export default function HomeScreen() {
         </ThemedText>
       </View>
 
-      <Card style={[styles.primaryCard, { backgroundColor: theme.cardAlt }]}>
+      <Card
+        style={[
+          styles.primaryCard,
+          { backgroundColor: isDuo ? theme.duoSoft : theme.cardAlt },
+          isDuo && styles.duoCardBorder(theme),
+        ]}>
         <View
           style={styles.carouselViewport}
           onLayout={(event) => {
@@ -262,9 +274,11 @@ export default function HomeScreen() {
                 style={[styles.carouselPage, { width: carouselWidth || '100%' }]}>
                 <View style={styles.primaryHeader}>
                   <View>
-                    <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
+                    <View style={styles.headerLabelRow}>
+                      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
                       Disponible mensual
-                    </ThemedText>
+                      </ThemedText>
+                    </View>
                     <ThemedText type="title" style={styles.primaryValue}>
                       {formatCurrency(entry.availability.available, entry.currency)}
                     </ThemedText>
@@ -278,7 +292,7 @@ export default function HomeScreen() {
                             key={item.currency}
                             style={[
                               styles.dot,
-                              { backgroundColor: index === currencyIndex ? theme.brand : theme.border },
+                              { backgroundColor: index === currencyIndex ? (isDuo ? theme.duoAccent : theme.brand) : theme.border },
                             ]}
                           />
                         ))}
@@ -298,11 +312,18 @@ export default function HomeScreen() {
       <Pressable
         onPress={() => router.push({ pathname: '/budget', params: { tab: 'Semanal' } })}
         style={({ pressed }) => [pressed && styles.cardPressed]}>
-        <Card style={styles.secondaryCard}>
+        <Card
+          style={[
+            styles.secondaryCard,
+            isDuo && styles.duoCardBorder(theme),
+            isDuo && { backgroundColor: theme.duoSoft },
+          ]}>
           <View style={styles.secondaryHeader}>
-            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
-              Disponible semanal
-            </ThemedText>
+            <View style={styles.headerLabelRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
+                Disponible semanal
+              </ThemedText>
+            </View>
             <ThemedText type="subtitle" style={styles.secondaryValue}>
               {formatCurrency(weeklyEnabled)}
             </ThemedText>
@@ -319,7 +340,7 @@ export default function HomeScreen() {
         </Card>
       </Pressable>
 
-      <Card>
+      <Card style={isDuo ? [styles.duoCardBorder(theme), { backgroundColor: theme.duoSoft }] : undefined}>
         <View
           style={styles.carouselViewport}
           onLayout={(event) => {
@@ -345,7 +366,9 @@ export default function HomeScreen() {
                 key={entry.currency}
                 style={[styles.carouselPage, { width: summaryWidth || '100%' }]}>
                 <View style={styles.summaryHeaderRow}>
-                  <ThemedText type="smallBold">Resumen del mes</ThemedText>
+                  <View style={styles.headerLabelRow}>
+                    <ThemedText type="smallBold">Resumen del mes</ThemedText>
+                  </View>
                   <View style={styles.currencyHint}>
                     <Pill label={entry.currency} tone="accent" />
                     {monthData.length > 1 ? (
@@ -355,7 +378,14 @@ export default function HomeScreen() {
                             key={item.currency}
                             style={[
                               styles.dot,
-                              { backgroundColor: index === currencyIndex ? theme.brand : theme.border },
+                              {
+                                backgroundColor:
+                                  index === currencyIndex
+                                    ? isDuo
+                                      ? theme.duoAccent
+                                      : theme.brand
+                                    : theme.border,
+                              },
                             ]}
                           />
                         ))}
@@ -389,7 +419,9 @@ export default function HomeScreen() {
         </View>
       </Card>
 
-      <Card variant="soft">
+      <Card
+        variant="soft"
+        style={isDuo ? [styles.duoCardBorder(theme), { backgroundColor: theme.duoSoft }] : undefined}>
         <SectionHeader title="Accesos rápidos" />
         <View style={styles.quickActions}>
           {quickActions.map((action) => (
@@ -398,7 +430,7 @@ export default function HomeScreen() {
               onPress={() => router.push(action.route)}
               style={({ pressed }) => [
                 styles.quickAction,
-                { borderColor: theme.border, backgroundColor: theme.card },
+                { borderColor: isDuo ? theme.duoAccent : theme.border, backgroundColor: isDuo ? theme.duoSoft : theme.card },
                 pressed && styles.quickActionPressed,
               ]}>
               <ThemedText type="smallBold">{action.label}</ThemedText>
@@ -407,14 +439,15 @@ export default function HomeScreen() {
         </View>
       </Card>
 
-      <Card>
+      <Card style={isDuo ? [styles.duoCardBorder(theme), { backgroundColor: theme.duoSoft }] : undefined}>
         <SectionHeader title="Tus focos" />
         <View style={styles.focusRow}>
           <Pressable
             onPress={() => router.push('/goals-overview')}
             style={({ pressed }) => [
               styles.focusCard,
-              { backgroundColor: theme.brandSoft },
+              { backgroundColor: isDuo ? theme.duoSoft : theme.brandSoft },
+              isDuo && { borderColor: theme.duoAccent, borderWidth: 1 },
               pressed && styles.quickActionPressed,
             ]}>
             <ThemedText type="smallBold">Metas de ahorro</ThemedText>
@@ -423,21 +456,28 @@ export default function HomeScreen() {
             </ThemedText>
           </Pressable>
           <Pressable
-            onPress={() => router.push('/instant-duo')}
+            onPress={() => {
+              if (isDuo) {
+                setContext('personal');
+                return;
+              }
+              router.push('/instant-duo');
+            }}
             style={({ pressed }) => [
               styles.focusCard,
-              { backgroundColor: theme.accentSoft },
+              { backgroundColor: isDuo ? theme.duoSoft : theme.accentSoft },
+              isDuo && { borderColor: theme.duoAccent, borderWidth: 1 },
               pressed && styles.quickActionPressed,
             ]}>
-            <ThemedText type="smallBold">Instant Duo</ThemedText>
+            <ThemedText type="smallBold">{isDuo ? 'Instant Solo' : 'Instant Duo'}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Balance compartido
+              {isDuo ? 'Volver a tu espacio personal' : 'Balance compartido'}
             </ThemedText>
           </Pressable>
         </View>
       </Card>
 
-      <Card>
+      <Card style={isDuo ? [styles.duoCardBorder(theme), { backgroundColor: theme.duoSoft }] : undefined}>
         <SectionHeader
           title="Últimos movimientos"
           actionLabel="Ver todos"
@@ -462,7 +502,9 @@ export default function HomeScreen() {
         </View>
       </Card>
 
-      <Card variant="soft">
+      <Card
+        variant="soft"
+        style={isDuo ? [styles.duoCardBorder(theme), { backgroundColor: theme.duoSoft }] : undefined}>
         <SectionHeader
           title="Próximos vencimientos"
           actionLabel="Ver calendario"
@@ -509,6 +551,10 @@ const styles = StyleSheet.create({
   primaryCard: {
     gap: Spacing.two,
   },
+  duoCardBorder: (theme: { duoAccent: string; duoBorder?: string }) => ({
+    borderWidth: 1,
+    borderColor: theme.duoBorder ?? theme.duoAccent,
+  }),
   carouselViewport: {
     width: '100%',
   },
@@ -523,6 +569,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  headerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    flexWrap: 'wrap',
   },
   primaryValue: {
     fontSize: 36,
@@ -616,6 +668,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 });
+
 
 
 

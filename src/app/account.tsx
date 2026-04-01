@@ -9,12 +9,18 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 import { lockSession, setBiometricsEnabled, signOut, updateProfile } from '@/lib/auth';
 import { authenticateWithBiometrics, canUseBiometrics } from '@/lib/biometrics';
 
 export default function AccountScreen() {
   const theme = useTheme();
+  const { state: duoState } = useDuo();
+  const isDuo = duoState.activeContext === 'duo';
+  const primary = isDuo ? theme.duoAccent : theme.brand;
+  const primarySoft = isDuo ? (theme.duoSupport ?? theme.brandSoft) : theme.brandSoft;
+  const accentAlt = isDuo ? (theme.duoAlt ?? theme.accent) : theme.accent;
   const { user, loading, biometricsEnabled } = useAuth();
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsToggle, setBiometricsToggle] = useState(biometricsEnabled);
@@ -73,7 +79,7 @@ export default function AccountScreen() {
         ) : user ? (
           <>
             <View style={styles.profileRow}>
-              <View style={[styles.avatar, { backgroundColor: theme.brandSoft }]}>
+              <View style={[styles.avatar, { backgroundColor: primarySoft }]}>
                 <ThemedText type="smallBold">{user.name.slice(0, 2).toUpperCase()}</ThemedText>
               </View>
               <View style={styles.profileInfo}>
@@ -152,7 +158,7 @@ export default function AccountScreen() {
                   }}
                   style={({ pressed }) => [
                     styles.primaryButton,
-                    { backgroundColor: theme.brand },
+                    { backgroundColor: primary },
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
@@ -183,7 +189,7 @@ export default function AccountScreen() {
               ) : null}
             </View>
             {saveError ? (
-              <ThemedText type="small" style={{ color: theme.accent }}>
+              <ThemedText type="small" style={{ color: accentAlt }}>
                 {saveError}
               </ThemedText>
             ) : null}
@@ -196,7 +202,7 @@ export default function AccountScreen() {
               onPress={() => router.push('/login')}
               style={({ pressed }) => [
                 styles.primaryButton,
-                { backgroundColor: theme.brand },
+                { backgroundColor: primary },
                 pressed && styles.pressed,
               ]}>
               <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
@@ -276,8 +282,8 @@ export default function AccountScreen() {
               setBiometricsToggle(value);
               await setBiometricsEnabled(value);
             }}
-            trackColor={{ false: theme.border, true: theme.brandSoft }}
-            thumbColor={biometricsToggle ? theme.brand : theme.textSecondary}
+            trackColor={{ false: theme.border, true: primarySoft }}
+            thumbColor={biometricsToggle ? primary : theme.textSecondary}
           />
         </View>
       </Card>
@@ -432,6 +438,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
 
 
 

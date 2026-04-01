@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import { getCachedAuthState, loadAuthState } from '@/lib/auth';
+import { getCachedToken, loadToken } from '@/lib/session';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 
 export type DuoState = {
@@ -86,10 +86,10 @@ async function saveDuoState(state: DuoState) {
 }
 
 async function getAuthToken() {
-  const cached = getCachedAuthState();
-  if (cached.token) return cached.token;
-  const loaded = await loadAuthState();
-  return loaded.token;
+  const cached = getCachedToken();
+  if (cached) return cached;
+  const loaded = await loadToken();
+  return loaded;
 }
 
 export async function refreshDuo(): Promise<DuoState> {

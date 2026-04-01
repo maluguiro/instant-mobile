@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 
 type ProgressBarProps = {
@@ -9,14 +10,18 @@ type ProgressBarProps = {
 
 export function ProgressBar({ value }: ProgressBarProps) {
   const theme = useTheme();
+  const { state: duoState } = useDuo();
   const clamped = Math.min(Math.max(value, 0), 1);
+  const isDuo = duoState.activeContext === 'duo';
+  const fillColor = isDuo ? theme.duoAccent : theme.brand;
+  const trackColor = isDuo ? theme.duoBorder ?? theme.backgroundSelected : theme.backgroundSelected;
 
   return (
-    <View style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
+    <View style={[styles.track, { backgroundColor: trackColor }]}>
       <View
         style={[
           styles.fill,
-          { width: `${clamped * 100}%`, backgroundColor: theme.brand },
+          { width: `${clamped * 100}%`, backgroundColor: fillColor },
         ]}
       />
     </View>

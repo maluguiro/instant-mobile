@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
+import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 
 type CardProps = ViewProps & {
@@ -10,14 +11,17 @@ type CardProps = ViewProps & {
 
 export function Card({ style, variant = 'default', ...rest }: CardProps) {
   const theme = useTheme();
-  const backgroundColor = variant === 'soft' ? theme.cardAlt : theme.card;
+  const { state } = useDuo();
+  const isDuo = state.activeContext === 'duo';
+  const backgroundColor = isDuo ? theme.duoSoft : variant === 'soft' ? theme.cardAlt : theme.card;
+  const borderColor = isDuo && theme.duoBorder ? theme.duoBorder : isDuo ? theme.duoAccent : theme.border;
 
   return (
     <View
       {...rest}
       style={[
         styles.card,
-        { backgroundColor, borderColor: theme.border },
+        { backgroundColor, borderColor },
         style,
       ]}
     />
