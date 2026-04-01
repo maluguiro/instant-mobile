@@ -32,7 +32,7 @@ import {
   toISODate,
 } from '@/lib/finance';
 import { defaultFinanceSettings, SavingsFrequency, WeeklyRenewalMode } from '@/lib/finance-settings';
-import { ensureWeeklyRenewal } from '@/lib/weekly-renewal';
+import { applyWeeklyRenewal, ensureWeeklyRenewal, skipWeeklyRenewal } from '@/lib/weekly-renewal';
 import { addTransaction, deleteTransaction, getTransactions } from '@/lib/transactions';
 import {
   addSavingsGoal,
@@ -177,6 +177,7 @@ export default function BudgetScreen() {
   const [goalSummaryIndex, setGoalSummaryIndex] = useState(0);
   const [goalSummaryWidth, setGoalSummaryWidth] = useState(0);
   const goalSummaryRef = useRef<ScrollView>(null);
+  const weeklyPromptedRef = useRef<string | null>(null);
 
   const [savePlanDone, setSavePlanDone] = useState(false);
   const [goalAddedDone, setGoalAddedDone] = useState(false);
@@ -190,7 +191,45 @@ export default function BudgetScreen() {
       const run = async () => {
         refresh();
         await refreshTransactions();
-        await ensureWeeklyRenewal(null, appSettings.currency);
+        const renewalResult = await ensureWeeklyRenewal(null, appSettings.currency);
+        if (renewalResult.status === 'pending' || renewalResult.status === 'confirm') {
+          const promptKey = `${renewalResult.status}-${settings.weeklyPendingSince ?? ''}-${renewalResult.amount ?? 0}`;
+          if (weeklyPromptedRef.current !== promptKey) {
+            weeklyPromptedRef.current = promptKey;
+            if (renewalResult.status === 'pending') {
+              Alert.alert(
+                'Plan semanal pendiente',
+                'Tu plan semanal se renueva hoy. Cargá tus ingresos para activarlo.'
+              );
+            } else {
+              const amountLabel = formatCurrency(renewalResult.amount, appSettings.currency);
+              Alert.alert(
+                'Renovación semanal',
+                `Ahora ya tenés saldo suficiente para activar tu plan semanal de ${amountLabel}. ¿Querés habilitarlo esta semana?`,
+                [
+                  {
+                    text: 'No, omitir',
+                    style: 'cancel',
+                    onPress: async () => {
+                      await skipWeeklyRenewal();
+                      await refresh();
+                    },
+                  },
+                  {
+                    text: 'Sí, activar',
+                    onPress: async () => {
+                      await applyWeeklyRenewal(null, appSettings.currency);
+                      await refreshTransactions();
+                      await refresh();
+                    },
+                  },
+                ]
+              );
+            }
+          }
+        } else {
+          weeklyPromptedRef.current = null;
+        }
         await refreshTransactions();
         const loadedGoals = await getSavingsGoals();
         if (active) setGoals(loadedGoals);
@@ -199,7 +238,7 @@ export default function BudgetScreen() {
       return () => {
         active = false;
       };
-    }, [refresh, refreshTransactions, appSettings.currency, duoState.activeContext, duoState.duoId])
+    }, [refresh, refreshTransactions, appSettings.currency, settings.weeklyPendingSince, duoState.activeContext, duoState.duoId])
   );
 
   useEffect(() => {
@@ -302,8 +341,10 @@ export default function BudgetScreen() {
     if (settings.weeklyMode === 'manual') {
       return Math.max(settings.weeklyManualEnabledAmount, 0);
     }
-    return latestWeeklyRenewal?.amount ?? 0;
-  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, latestWeeklyRenewal]);
+    const base = latestWeeklyRenewal?.amount ?? 0;
+    const carryover = settings.weeklyRolloverMode === 'keep' ? Math.max(settings.weeklyLastCarryover ?? 0, 0) : 0;
+    return base + carryover;
+  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, settings.weeklyLastCarryover, settings.weeklyRolloverMode, latestWeeklyRenewal]);
 
   const weeklyUsed = useMemo(
     () =>
@@ -490,6 +531,10 @@ export default function BudgetScreen() {
         weeklyRolloverMode === 'goal' ? weeklyRolloverGoalId || undefined : undefined,
       weeklyLastRenewedAt: shouldResetWeekly ? null : settings.weeklyLastRenewedAt,
       weeklyLastRenewalAmount: shouldResetWeekly ? 0 : settings.weeklyLastRenewalAmount,
+      weeklyLastCarryover: shouldResetWeekly ? 0 : settings.weeklyLastCarryover,
+      weeklyPendingRenewal: shouldResetWeekly ? false : settings.weeklyPendingRenewal,
+      weeklyPendingSince: shouldResetWeekly ? null : settings.weeklyPendingSince,
+      weeklyPendingAmount: shouldResetWeekly ? 0 : settings.weeklyPendingAmount,
     };
 
     await update(nextSettings);
@@ -752,6 +797,10 @@ export default function BudgetScreen() {
             weeklyManualEnabledAt: defaultFinanceSettings.weeklyManualEnabledAt,
             weeklyLastRenewedAt: defaultFinanceSettings.weeklyLastRenewedAt,
             weeklyLastRenewalAmount: defaultFinanceSettings.weeklyLastRenewalAmount,
+            weeklyLastCarryover: defaultFinanceSettings.weeklyLastCarryover,
+            weeklyPendingRenewal: defaultFinanceSettings.weeklyPendingRenewal,
+            weeklyPendingSince: defaultFinanceSettings.weeklyPendingSince,
+            weeklyPendingAmount: defaultFinanceSettings.weeklyPendingAmount,
             weeklyRolloverMode: defaultFinanceSettings.weeklyRolloverMode,
             weeklyRolloverGoalId: defaultFinanceSettings.weeklyRolloverGoalId,
           });

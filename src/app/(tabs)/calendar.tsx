@@ -33,6 +33,8 @@ import {
   saveDueDates,
   saveInstallments,
   saveRecurringPayments,
+  updateInstallment,
+  updateRecurringPayment,
 } from '@/lib/calendar';
 import { addCategory, getCategories } from '@/lib/categories';
 import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
@@ -114,6 +116,8 @@ export default function CalendarScreen() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [addType, setAddType] = useState<AddType>('Pago único');
+  const [editingItem, setEditingItem] = useState<{ type: AddType; id: string } | null>(null);
+  const isEditing = Boolean(editingItem);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -247,6 +251,7 @@ export default function CalendarScreen() {
   );
 
   const handleOpenAdd = () => {
+    setEditingItem(null);
     const defaultType =
       activeTab === 'Cuotas' ? 'Cuota' : activeTab === 'Recurrentes' ? 'Recurrente' : 'Pago único';
     setAddType(defaultType);
@@ -292,6 +297,7 @@ export default function CalendarScreen() {
     setNewOption('');
     setAddingOption(false);
     setImportantHint(null);
+    setEditingItem(null);
   };
 
   const handleImportantToggle = async (value: boolean, setValue: (next: boolean) => void, clearExport: () => void) => {
@@ -345,8 +351,7 @@ export default function CalendarScreen() {
         Alert.alert('Completá la recurrencia', 'Agregá un nombre y un monto válido.');
         return;
       }
-      const item: RecurringPayment = {
-        id: String(Date.now()),
+      const payload = {
         name,
         amount,
         currency: recCurrency,
@@ -360,13 +365,21 @@ export default function CalendarScreen() {
         method: recMethod || undefined,
         important: recImportant,
         calendarExported: recCalendarExport,
-        status: 'active',
-        createdAt: new Date().toISOString(),
       };
-      const next = await addRecurringPayment(item);
-      setRecurring(next);
-      if (recCalendarExport) {
-        await openGoogleCalendarEvent(name, item.nextDate, 'Pago recurrente en Instant');
+      if (editingItem?.type === 'Recurrente') {
+        const next = await updateRecurringPayment(editingItem.id, payload);
+        setRecurring(next);
+      } else {
+        const next = await addRecurringPayment({
+          id: String(Date.now()),
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          ...payload,
+        });
+        setRecurring(next);
+        if (recCalendarExport) {
+          await openGoogleCalendarEvent(name, payload.nextDate, 'Pago recurrente en Instant');
+        }
       }
     }
 
@@ -379,8 +392,7 @@ export default function CalendarScreen() {
         Alert.alert('Completá la cuota', 'Agregá nombre, monto y cantidad total.');
         return;
       }
-      const item: Installment = {
-        id: String(Date.now()),
+      const payload = {
         name,
         amount,
         currency: instCurrency,
@@ -391,18 +403,63 @@ export default function CalendarScreen() {
         method: instMethod || undefined,
         important: instImportant,
         calendarExported: instCalendarExport,
-        status: 'active',
-        createdAt: new Date().toISOString(),
       };
-      const next = await addInstallment(item);
-      setInstallments(next);
-      if (instCalendarExport) {
-        await openGoogleCalendarEvent(name, item.nextDate, 'Cuota en Instant');
+      if (editingItem?.type === 'Cuota') {
+        const next = await updateInstallment(editingItem.id, payload);
+        setInstallments(next);
+      } else {
+        const next = await addInstallment({
+          id: String(Date.now()),
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          ...payload,
+        });
+        setInstallments(next);
+        if (instCalendarExport) {
+          await openGoogleCalendarEvent(name, payload.nextDate, 'Cuota en Instant');
+        }
       }
     }
 
     resetForms();
     setShowAdd(false);
+  };
+
+  const handleEditRecurring = (item: RecurringPayment) => {
+    resetForms();
+    setEditingItem({ type: 'Recurrente', id: item.id });
+    setAddType('Recurrente');
+    setRecName(item.name);
+    setRecAmount(String(item.amount));
+    setRecCurrency(item.currency);
+    setRecFrequency(item.frequency);
+    setRecEveryDays(String(item.everyDays ?? 30));
+    setRecNextDate(new Date(item.nextDate + 'T00:00:00'));
+    setRecDurationType(item.durationType ?? 'indefinite');
+    setRecDurationMonths(String(item.durationMonths ?? 6));
+    setRecEndDate(item.endDate ? new Date(item.endDate + 'T00:00:00') : new Date());
+    setRecCategory(item.category ?? '');
+    setRecMethod(item.method ?? '');
+    setRecImportant(Boolean(item.important));
+    setRecCalendarExport(Boolean(item.calendarExported));
+    setShowAdd(true);
+  };
+
+  const handleEditInstallment = (item: Installment) => {
+    resetForms();
+    setEditingItem({ type: 'Cuota', id: item.id });
+    setAddType('Cuota');
+    setInstName(item.name);
+    setInstAmount(String(item.amount));
+    setInstCurrency(item.currency);
+    setInstTotal(String(item.total));
+    setInstCurrent(String(item.current));
+    setInstNextDate(new Date(item.nextDate + 'T00:00:00'));
+    setInstCategory(item.category ?? '');
+    setInstMethod(item.method ?? '');
+    setInstImportant(Boolean(item.important));
+    setInstCalendarExport(Boolean(item.calendarExported));
+    setShowAdd(true);
   };
 
   const openSelect = (
@@ -713,6 +770,13 @@ export default function CalendarScreen() {
                         Estado: {statusLabel}
                       </ThemedText>
                       <View style={styles.actionRow}>
+                        <Pressable
+                          onPress={() => handleEditRecurring(item)}
+                          style={styles.actionButton}>
+                          <ThemedText type="small" style={{ color: primary }}>
+                            Editar
+                          </ThemedText>
+                        </Pressable>
                         {item.status === 'active' ? (
                           <Pressable
                             onPress={() => updateRecurringStatus(item.id, 'paused')}
@@ -792,6 +856,11 @@ export default function CalendarScreen() {
                           Registrar cuota
                         </ThemedText>
                       </Pressable>
+                      <Pressable onPress={() => handleEditInstallment(item)} style={styles.actionButton}>
+                        <ThemedText type="small" style={{ color: primary }}>
+                          Editar
+                        </ThemedText>
+                      </Pressable>
                       <Pressable onPress={() => handleDeleteInstallment(item.id)} style={styles.actionButton}>
                         <ThemedText type="small" style={{ color: theme.textSecondary }}>
                           Borrar
@@ -827,9 +896,9 @@ export default function CalendarScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
             <View style={styles.modalHeader}>
-              <ThemedText type="subtitle">Nuevo registro</ThemedText>
+              <ThemedText type="subtitle">{isEditing ? 'Editar registro' : 'Nuevo registro'}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Elegí qué tipo de pago querés cargar.
+                {isEditing ? 'Actualizá los datos del pago.' : 'Elegí qué tipo de pago querés cargar.'}
               </ThemedText>
             </View>
 
@@ -839,7 +908,10 @@ export default function CalendarScreen() {
                   key={type}
                   label={type}
                   selected={addType === type}
-                  onPress={() => setAddType(type)}
+                  onPress={() => {
+                    setEditingItem(null);
+                    setAddType(type);
+                  }}
                 />
               ))}
             </View>
@@ -1319,7 +1391,7 @@ export default function CalendarScreen() {
                   pressed && styles.pressed,
                 ]}>
                 <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-                  Guardar
+                  {isEditing ? 'Guardar cambios' : 'Guardar'}
                 </ThemedText>
               </Pressable>
             </View>

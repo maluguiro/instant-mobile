@@ -26,6 +26,10 @@ export type FinanceSettings = {
   weeklyManualEnabledAt: string | null;
   weeklyLastRenewedAt: string | null;
   weeklyLastRenewalAmount: number;
+  weeklyLastCarryover: number;
+  weeklyPendingRenewal: boolean;
+  weeklyPendingSince: string | null;
+  weeklyPendingAmount: number;
   weeklyRolloverMode: 'keep' | 'savings' | 'goal';
   weeklyRolloverGoalId?: string;
 };
@@ -49,6 +53,10 @@ export const defaultFinanceSettings: FinanceSettings = {
   weeklyManualEnabledAt: null,
   weeklyLastRenewedAt: null,
   weeklyLastRenewalAmount: 0,
+  weeklyLastCarryover: 0,
+  weeklyPendingRenewal: false,
+  weeklyPendingSince: null,
+  weeklyPendingAmount: 0,
   weeklyRolloverMode: 'keep',
   weeklyRolloverGoalId: undefined,
 };

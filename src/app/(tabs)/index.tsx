@@ -1,7 +1,7 @@
 ﻿import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -33,7 +33,7 @@ import {
   startOfWeek,
   toISODate,
 } from '@/lib/finance';
-import { ensureWeeklyRenewal } from '@/lib/weekly-renewal';
+import { applyWeeklyRenewal, ensureWeeklyRenewal, skipWeeklyRenewal } from '@/lib/weekly-renewal';
 import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
 
 export default function HomeScreen() {
@@ -52,6 +52,7 @@ export default function HomeScreen() {
   const [summaryWidth, setSummaryWidth] = useState(0);
   const mainCarouselRef = useRef<ScrollView>(null);
   const summaryCarouselRef = useRef<ScrollView>(null);
+  const weeklyPromptedRef = useRef<string | null>(null);
   const isDuo = duoState.activeContext === 'duo';
   const headerTitle = isDuo
     ? `${user?.name ?? 'Vos'} + Duo`
@@ -63,7 +64,45 @@ export default function HomeScreen() {
       const run = async () => {
         await refresh();
         await refreshSettings();
-        await ensureWeeklyRenewal(null, appSettings.currency);
+        const renewalResult = await ensureWeeklyRenewal(null, appSettings.currency);
+        if (renewalResult.status === 'pending' || renewalResult.status === 'confirm') {
+          const promptKey = `${renewalResult.status}-${settings.weeklyPendingSince ?? ''}-${renewalResult.amount ?? 0}`;
+          if (weeklyPromptedRef.current !== promptKey) {
+            weeklyPromptedRef.current = promptKey;
+            if (renewalResult.status === 'pending') {
+              Alert.alert(
+                'Plan semanal pendiente',
+                'Tu plan semanal se renueva hoy. Cargá tus ingresos para activarlo.'
+              );
+            } else {
+              const amountLabel = formatCurrency(renewalResult.amount, appSettings.currency);
+              Alert.alert(
+                'Renovación semanal',
+                `Ahora ya tenés saldo suficiente para activar tu plan semanal de ${amountLabel}. ¿Querés habilitarlo esta semana?`,
+                [
+                  {
+                    text: 'No, omitir',
+                    style: 'cancel',
+                    onPress: async () => {
+                      await skipWeeklyRenewal();
+                      await refreshSettings();
+                    },
+                  },
+                  {
+                    text: 'Sí, activar',
+                    onPress: async () => {
+                      await applyWeeklyRenewal(null, appSettings.currency);
+                      await refreshSettings();
+                      await refresh();
+                    },
+                  },
+                ]
+              );
+            }
+          }
+        } else {
+          weeklyPromptedRef.current = null;
+        }
         await refresh();
         const loadedGoals = await getSavingsGoals();
         if (active) setGoals(loadedGoals);
@@ -78,7 +117,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [refresh, refreshSettings, appSettings.currency, duoState.activeContext, duoState.duoId])
+    }, [refresh, refreshSettings, appSettings.currency, settings.weeklyPendingSince, duoState.activeContext, duoState.duoId])
   );
 
   const monthData = useMemo(() => {
@@ -174,8 +213,10 @@ export default function HomeScreen() {
     if (settings.weeklyMode === 'manual') {
       return Math.max(settings.weeklyManualEnabledAmount, 0);
     }
-    return latestWeeklyRenewal?.amount ?? 0;
-  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, latestWeeklyRenewal]);
+    const base = latestWeeklyRenewal?.amount ?? 0;
+    const carryover = settings.weeklyRolloverMode === 'keep' ? Math.max(settings.weeklyLastCarryover ?? 0, 0) : 0;
+    return base + carryover;
+  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, settings.weeklyLastCarryover, settings.weeklyRolloverMode, latestWeeklyRenewal]);
 
   const weeklyUsed = useMemo(
     () =>

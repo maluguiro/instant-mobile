@@ -111,6 +111,16 @@ export async function addRecurringPayment(item: RecurringPayment): Promise<Recur
   return next;
 }
 
+export async function updateRecurringPayment(
+  id: string,
+  patch: Partial<RecurringPayment>
+): Promise<RecurringPayment[]> {
+  const items = await getRecurringPayments();
+  const next = items.map((item) => (item.id === id ? { ...item, ...patch } : item));
+  await saveRecurringPayments(next);
+  return next;
+}
+
 export async function removeRecurringPayment(id: string): Promise<RecurringPayment[]> {
   const items = await getRecurringPayments();
   const next = items.filter((item) => item.id !== id);
@@ -139,6 +149,16 @@ export async function saveInstallments(items: Installment[]): Promise<void> {
 export async function addInstallment(item: Installment): Promise<Installment[]> {
   const items = await getInstallments();
   const next = [item, ...items];
+  await saveInstallments(next);
+  return next;
+}
+
+export async function updateInstallment(
+  id: string,
+  patch: Partial<Installment>
+): Promise<Installment[]> {
+  const items = await getInstallments();
+  const next = items.map((item) => (item.id === id ? { ...item, ...patch } : item));
   await saveInstallments(next);
   return next;
 }

@@ -9,10 +9,8 @@ export function getCachedToken(): SessionToken {
 }
 
 export async function loadToken(): Promise<SessionToken> {
-  const stored = await getItem<SessionToken>(STORAGE_KEYS.auth, null);
-  if (stored) {
-    cachedToken = stored;
-  }
+  const stored = await getItem<{ token?: SessionToken }>(STORAGE_KEYS.auth, { token: null });
+  cachedToken = stored?.token ?? null;
   return cachedToken;
 }
 
