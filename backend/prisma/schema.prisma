@@ -18,6 +18,9 @@ model User {
   categories   Category[]
   methods      PaymentMethod[]
   duoMemberships DuoMember[]
+  dueDates     DueDate[]
+  recurringPayments RecurringPayment[]
+  installments Installment[]
 }
 
 enum TransactionType {
@@ -36,6 +39,9 @@ model Duo {
   transactions Transaction[]
   categories   Category[]
   methods      PaymentMethod[]
+  dueDates     DueDate[]
+  recurringPayments RecurringPayment[]
+  installments Installment[]
 }
 
 model DuoMember {
@@ -97,4 +103,75 @@ model PaymentMethod {
 
   @@unique([userId, name])
   @@unique([duoId, name])
+}
+
+model DueDate {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId           String?
+  duo             Duo?     @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  name            String
+  amount          Float
+  currency        String
+  date            DateTime
+  category        String?
+  method          String?
+  note            String?
+  important       Boolean  @default(false)
+  calendarExported Boolean @default(false)
+  status          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([duoId])
+}
+
+model RecurringPayment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId           String?
+  duo             Duo?     @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  name            String
+  amount          Float
+  currency        String
+  frequency       String
+  everyDays       Int?
+  nextDate        DateTime
+  durationType    String?
+  durationMonths  Int?
+  endDate         DateTime?
+  category        String?
+  method          String?
+  important       Boolean  @default(false)
+  calendarExported Boolean @default(false)
+  status          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([duoId])
+}
+
+model Installment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duoId           String?
+  duo             Duo?     @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  name            String
+  amount          Float
+  currency        String
+  total           Int
+  current         Int
+  nextDate        DateTime
+  category        String?
+  method          String?
+  important       Boolean  @default(false)
+  calendarExported Boolean @default(false)
+  status          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([duoId])
 }

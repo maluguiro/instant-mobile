@@ -15,6 +15,7 @@ export function useDuo() {
   const refresh = useCallback(async () => {
     const next = await refreshDuo();
     setState(next);
+    return next;
   }, []);
 
   const setContext = useCallback(async (next: 'personal' | 'duo') => {

@@ -9,11 +9,18 @@ const joinSchema = z.object({
   code: z.string().min(3),
 });
 
-async function findActiveMembership(userId: string) {
+async function findMembership(userId: string) {
   return prisma.duoMember.findFirst({
     where: { userId, active: true },
     include: { duo: true },
   });
+}
+
+async function findOpenMembership(userId: string) {
+  const membership = await findMembership(userId);
+  if (!membership) return null;
+  if (membership.duo.closedAt) return null;
+  return membership;
 }
 
 async function generateCode(): Promise<string> {
@@ -26,13 +33,19 @@ async function generateCode(): Promise<string> {
 }
 
 duoRouter.get('/', async (req, res) => {
-  const membership = await findActiveMembership(req.userId);
+  const membership = await findMembership(req.userId);
   if (!membership) {
     return res.json({ duo: null });
   }
   const memberCount = await prisma.duoMember.count({
     where: { duoId: membership.duoId, active: true },
   });
+  if (membership.duo.closedAt) {
+    await prisma.duoMember.update({
+      where: { id: membership.id },
+      data: { active: false },
+    });
+  }
   let closedByName: string | null = null;
   if (membership.duo.closedById) {
     const closedBy = await prisma.user.findUnique({
@@ -53,7 +66,7 @@ duoRouter.get('/', async (req, res) => {
 });
 
 duoRouter.post('/create', async (req, res) => {
-  const existing = await findActiveMembership(req.userId);
+  const existing = await findOpenMembership(req.userId);
   if (existing) {
     return res.status(409).json({ error: 'Ya tenes un Duo activo.' });
   }
@@ -84,7 +97,7 @@ duoRouter.post('/join', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: 'Codigo invalido.' });
   }
-  const existing = await findActiveMembership(req.userId);
+  const existing = await findOpenMembership(req.userId);
   if (existing) {
     return res.status(409).json({ error: 'Ya tenes un Duo activo.' });
   }
@@ -115,8 +128,15 @@ duoRouter.post('/join', async (req, res) => {
 });
 
 duoRouter.post('/leave', async (req, res) => {
-  const membership = await findActiveMembership(req.userId);
+  const membership = await findMembership(req.userId);
   if (!membership) {
+    return res.json({ ok: true });
+  }
+  if (membership.duo.closedAt) {
+    await prisma.duoMember.update({
+      where: { id: membership.id },
+      data: { active: false },
+    });
     return res.json({ ok: true });
   }
   await prisma.duoMember.update({

@@ -11,6 +11,7 @@ import { Spacing } from '@/constants/theme';
 import { useDuo } from '@/hooks/use-duo';
 import { useTheme } from '@/hooks/use-theme';
 import { createDuo, joinDuo, leaveDuo } from '@/lib/duo';
+import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 
 export default function InstantDuoScreen() {
   const theme = useTheme();
@@ -31,7 +32,19 @@ export default function InstantDuoScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refresh();
+      refresh().then(async (next) => {
+        if (!next.closedAt || !next.duoId) return;
+        const key = `${STORAGE_KEYS.duoClosedNotice}:${next.duoId}`;
+        const seen = await getItem<string | null>(key, null);
+        if (seen !== next.closedAt) {
+          const by = next.closedByName ? `${next.closedByName} ` : '';
+          Alert.alert(
+            'Instant Duo cerrado',
+            `${by}disolviÃ³ Instant Duo. Ahora podÃ©s crear o unirte a un nuevo Duo si lo necesitÃ¡s.`
+          );
+          await setItem(key, next.closedAt);
+        }
+      });
     }, [refresh])
   );
 
@@ -85,12 +98,12 @@ export default function InstantDuoScreen() {
 
   const handleLeave = () => {
     Alert.alert(
-      'Salir de Duo',
-      'Esta accion cierra el espacio compartido para las dos personas. Se borrara el acceso de ambos.',
+      'Disolver Duo',
+      'Esta acciÃ³n cierra el espacio compartido para las dos personas. Ambos volverÃ¡n a modo Solo.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Salir',
+          text: 'Disolver',
           style: 'destructive',
           onPress: async () => {
             await leaveDuo();
@@ -103,6 +116,7 @@ export default function InstantDuoScreen() {
   const isActive = state.activeContext === 'duo';
   const hasDuo = state.status === 'member' && Boolean(state.duoId);
   const isClosed = Boolean(state.closedAt);
+  const showStartCard = !hasDuo || isClosed;
 
   return (
     <Screen>
@@ -128,11 +142,13 @@ export default function InstantDuoScreen() {
         </View>
       </Card>
 
-      {!hasDuo ? (
+      {showStartCard ? (
         <Card style={[styles.duoCard, { backgroundColor: theme.duoSoft, borderColor: theme.duoAccent }]}>
-          <SectionHeader title="Empezar Duo" />
+          <SectionHeader title={isClosed ? 'Duo cerrado' : 'Empezar Duo'} />
           <ThemedText type="small" themeColor="textSecondary">
-            Crea un Duo para invitar a alguien o unite con un codigo.
+            {isClosed
+              ? 'Tu Duo anterior quedÃ³ cerrado. PodÃ©s crear uno nuevo o unirte a otro cÃ³digo.'
+              : 'Crea un Duo para invitar a alguien o unite con un codigo.'}
           </ThemedText>
           {error ? (
             <ThemedText type="smallBold" style={{ color: theme.warning }}>
@@ -167,57 +183,13 @@ export default function InstantDuoScreen() {
         </Card>
       ) : (
         <Card style={[styles.duoCard, { backgroundColor: theme.duoSoft, borderColor: theme.duoAccent }]}>
-          <SectionHeader title="Tu Duo" />
+          <SectionHeader title="Gestionar Duo" />
           <ThemedText type="small" themeColor="textSecondary">
-            Compartí este código para que la otra persona se una cuando quiera.
+            Encontr� el c�digo, compartir y disolver en Ajustes > Tu Duo.
           </ThemedText>
-          {isClosed ? (
-            <ThemedText type="smallBold" style={{ color: theme.warning }}>
-              Duo cerrado{state.closedByName ? ` por ${state.closedByName}` : ''}.
-            </ThemedText>
-          ) : null}
-          <View style={styles.duoRow}>
-            <View>
-              <ThemedText type="small" themeColor="textSecondary">
-                Codigo
-              </ThemedText>
-              <ThemedText type="subtitle">{state.code ?? '---'}</ThemedText>
-            </View>
-            <View>
-              <ThemedText type="small" themeColor="textSecondary">
-                Miembros
-              </ThemedText>
-              <ThemedText type="subtitle">{state.memberCount ?? 1} / 2</ThemedText>
-            </View>
-          </View>
-          <View style={styles.codeActions}>
-            <Pressable
-              onPress={handleCopy}
-              style={({ pressed }) => [
-                styles.outlineButton,
-                { borderColor: theme.duoAccent },
-                pressed && styles.pressed,
-              ]}>
-              <ThemedText type="smallBold" style={{ color: theme.duoAccent }}>
-                Copiar
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={handleShare}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                { backgroundColor: theme.duoAccent },
-                pressed && styles.pressed,
-              ]}>
-              <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
-                Compartir
-              </ThemedText>
-            </Pressable>
-          </View>
           <View style={styles.actionRow}>
             <Pressable
               onPress={() => setContext(isActive ? 'personal' : 'duo')}
-              disabled={isClosed}
               style={({ pressed }) => [
                 styles.primaryButton,
                 { backgroundColor: theme.duoAccent },
@@ -225,17 +197,6 @@ export default function InstantDuoScreen() {
               ]}>
               <ThemedText type="smallBold" style={{ color: theme.onBrand }}>
                 {isActive ? 'Volver a personal' : 'Cambiar a Duo'}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={handleLeave}
-              style={({ pressed }) => [
-                styles.outlineButton,
-                { borderColor: theme.border },
-                pressed && styles.pressed,
-              ]}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Salir de Duo
               </ThemedText>
             </Pressable>
           </View>
@@ -303,6 +264,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: Spacing.two,
   },
+  duoHero: {
+    borderWidth: 1,
+    gap: Spacing.two,
+  },
   bannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,6 +291,9 @@ const styles = StyleSheet.create({
   codeActions: {
     marginTop: Spacing.two,
     gap: Spacing.two,
+  },
+  dissolveButton: {
+    marginTop: Spacing.two,
   },
   primaryButton: {
     paddingVertical: Spacing.three,

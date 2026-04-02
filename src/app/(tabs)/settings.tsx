@@ -16,6 +16,7 @@ type SettingsEntry = {
 
 const settingsMenu: SettingsEntry[] = [
   { label: 'Cuenta', route: '/account' },
+  { label: 'Tu Duo', route: '/duo-settings' },
   { label: 'Cómo usar Instant', route: '/help' },
   { label: 'Categorías', route: '/categories' },
   { label: 'Métodos de pago', route: '/payment-methods' },

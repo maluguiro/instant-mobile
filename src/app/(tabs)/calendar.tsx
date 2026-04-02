@@ -30,9 +30,8 @@ import {
   removeDueDate,
   removeInstallment,
   removeRecurringPayment,
-  saveDueDates,
   saveInstallments,
-  saveRecurringPayments,
+  updateDueDate,
   updateInstallment,
   updateRecurringPayment,
 } from '@/lib/calendar';
@@ -548,14 +547,12 @@ export default function CalendarScreen() {
   };
 
   const handleMarkDuePaid = async (id: string) => {
-    const next = dueDates.map((item) => (item.id === id ? { ...item, status: 'paid' } : item));
-    await saveDueDates(next);
+    const next = await updateDueDate(id, { status: 'paid' });
     setDueDates(next);
   };
 
   const updateRecurringStatus = async (id: string, status: 'active' | 'paused' | 'ended') => {
-    const next = recurring.map((item) => (item.id === id ? { ...item, status } : item));
-    await saveRecurringPayments(next);
+    const next = await updateRecurringPayment(id, { status });
     setRecurring(next);
   };
 
@@ -598,8 +595,17 @@ export default function CalendarScreen() {
         status: completed ? 'completed' : item.status,
       };
     });
-    await saveInstallments(next);
-    setInstallments(next);
+    const updatedItem = next.find((item) => item.id === id);
+    if (updatedItem) {
+      const stored = await updateInstallment(id, {
+        current: updatedItem.current,
+        status: updatedItem.status,
+      });
+      setInstallments(stored);
+    } else {
+      await saveInstallments(next);
+      setInstallments(next);
+    }
     const updated = next.find((item) => item.id === id);
     if (updated && updated.status === 'completed') {
       Alert.alert('Cuota completada', 'Esta cuota quedó finalizada.');
