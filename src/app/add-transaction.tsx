@@ -1,5 +1,5 @@
-﻿import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import { router, useLocalSearchParams, usePathname } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -38,7 +38,18 @@ type DateOption = (typeof DATE_OPTIONS)[number];
 type TransactionKind = 'expense' | 'income';
 
 export default function AddTransactionScreen() {
+  const params = useLocalSearchParams<{ quick?: string | string[]; focus?: string | string[] }>();
+  const pathname = usePathname();
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
+  const amountInputRef = useRef<TextInput>(null);
+  const quickParam = Array.isArray(params.quick) ? params.quick[0] : params.quick;
+  const focusParam = Array.isArray(params.focus) ? params.focus[0] : params.focus;
+  const shouldAutoFocus =
+    pathname === '/new-movement' ||
+    quickParam === '1' ||
+    quickParam === 'true' ||
+    focusParam === '1' ||
+    focusParam === 'true';
   const [type, setType] = useState<TransactionKind>('expense');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -90,6 +101,16 @@ export default function AddTransactionScreen() {
     React.useCallback(() => {
       getCategories().then(setExpenseCategories);
     }, [])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!shouldAutoFocus) return;
+      const timer = setTimeout(() => {
+        amountInputRef.current?.focus();
+      }, 120);
+      return () => clearTimeout(timer);
+    }, [shouldAutoFocus])
   );
 
   const categories = useMemo(() => {
@@ -217,12 +238,14 @@ export default function AddTransactionScreen() {
             {currency}
           </ThemedText>
           <TextInput
+            ref={amountInputRef}
             placeholder="0"
             placeholderTextColor={theme.textSecondary}
             style={[styles.amountInput, { color: theme.text }]}
             keyboardType="numeric"
             value={amount}
             onChangeText={setAmount}
+            autoFocus={shouldAutoFocus}
           />
           <CurrencySelect
             value={currency}
@@ -505,3 +528,13 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 });
+
+
+
+
+
+
+
+
+
+

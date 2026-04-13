@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+﻿import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -25,7 +25,6 @@ export default function LoginScreen() {
   useEffect(() => {
     canUseBiometrics().then(setBiometricsAvailable);
   }, []);
-
   const handleSubmit = async () => {
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes('@')) {
@@ -130,17 +129,17 @@ export default function LoginScreen() {
             {error}
           </ThemedText>
         ) : null}
-        <Pressable
-          onPress={handleSubmit}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: theme.brand },
-            pressed && styles.pressed,
-          ]}>
-          <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-            Iniciar sesión
-          </ThemedText>
-        </Pressable>
+                  <Pressable
+            onPress={handleSubmit}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.brand },
+              pressed && styles.pressed,
+            ]}>
+            <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+              Iniciar sesión
+            </ThemedText>
+          </Pressable>
         {biometricsAvailable && biometricsEnabled ? (
           <Pressable
             onPress={handleBiometricLogin}
@@ -166,8 +165,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
+const styles = StyleSheet.create({  header: {
     gap: Spacing.one,
     marginTop: Spacing.two,
   },
@@ -238,3 +236,21 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

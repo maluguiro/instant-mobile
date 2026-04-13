@@ -51,14 +51,17 @@ function AuthGate() {
     if (loading) return;
     const root = segments[0];
     const authRoutes = ['auth', 'login', 'signup', 'reset-password'];
-    const publicRoutes = ['onboarding', ...authRoutes];
+    const entryRoute = 'entry';
+    const publicRoutes = ['onboarding', entryRoute, ...authRoutes];
+
+    if (!root) return;
 
     if (!user && !publicRoutes.includes(root)) {
       router.replace('/auth');
       return;
     }
 
-    if (user && authRoutes.includes(root)) {
+    if (user && (authRoutes.includes(root) || root === entryRoute)) {
       router.replace('/(tabs)');
     }
   }, [loading, user, segments, router]);
@@ -157,11 +160,15 @@ export default function RootLayout() {
       <NotificationsGate />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="entry" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="add-transaction" />
+        <Stack.Screen name="new-movement" />
         <Stack.Screen name="savings-goals" />
         <Stack.Screen name="instant-duo" />
       </Stack>
     </ThemeProvider>
   );
 }
+
+
