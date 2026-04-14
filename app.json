@@ -4,7 +4,7 @@
     "slug": "instant-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/imagenes/icono-instant.png",
+    "icon": "./assets/icon.png",
     "scheme": "instantmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -13,7 +13,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#D97A5B",
-        "foregroundImage": "./src/imagenes/icono-instant.png"
+        "foregroundImage": "./assets/icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.maleguiro.instant"
