@@ -1,46 +1,11 @@
-﻿import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-
+import React, { useEffect } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { getHasSeenOnboarding } from '@/constants/launch-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/use-auth';
 import { getNotifications, scheduleLocalNotifications, scheduleSnoozeNotification } from '@/lib/notifications';
-
-function LaunchGate() {
-  const segments = useSegments();
-  const router = useRouter();
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const check = async () => {
-      const seen = await getHasSeenOnboarding();
-      if (!mounted) return;
-      if (!seen) {
-        const root = segments[0];
-        if (root !== 'onboarding') {
-          router.replace('/onboarding');
-        }
-      }
-      setChecked(true);
-    };
-
-    check();
-    return () => {
-      mounted = false;
-    };
-  }, [segments, router]);
-
-  if (!checked) {
-    return null;
-  }
-
-  return null;
-}
 
 function AuthGate() {
   const { user, loading } = useAuth();
@@ -61,7 +26,7 @@ function AuthGate() {
       return;
     }
 
-    if (user && (authRoutes.includes(root) || root === entryRoute)) {
+    if (user && authRoutes.includes(root)) {
       router.replace('/(tabs)');
     }
   }, [loading, user, segments, router]);
@@ -89,7 +54,7 @@ function NotificationsGate() {
       Notifications.setNotificationCategoryAsync('instant-snooze', [
         { identifier: 'snooze-1h', buttonTitle: 'Posponer 1h', options: { opensAppToForeground: false } },
         { identifier: 'snooze-3h', buttonTitle: 'Posponer 3h', options: { opensAppToForeground: false } },
-        { identifier: 'snooze-tomorrow', buttonTitle: 'Mañana', options: { opensAppToForeground: false } },
+        { identifier: 'snooze-tomorrow', buttonTitle: 'Ma�ana', options: { opensAppToForeground: false } },
       ]);
 
       const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -155,7 +120,6 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
-      <LaunchGate />
       <AuthGate />
       <NotificationsGate />
       <Stack screenOptions={{ headerShown: false }}>
@@ -170,5 +134,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-

@@ -1,14 +1,68 @@
 ﻿import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Screen } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { signInWithBiometrics } from '@/lib/auth';
+import { authenticateWithBiometrics, getBiometricAvailability } from '@/lib/biometrics';
 
 export default function EntryScreen() {
   const theme = useTheme();
+  const { user, biometricsEnabled } = useAuth();
+  const [biometricVisible, setBiometricVisible] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    getBiometricAvailability().then(({ supported, enrolled }) => {
+      if (!active) return;
+      setBiometricVisible(Boolean(biometricsEnabled && supported && enrolled));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [biometricsEnabled]);
+
+  const greetingName = useMemo(() => user?.name ?? '{nombre}', [user?.name]);
+
+  const handleBiometricPress = async () => {
+    setMessage('');
+
+    const { supported, enrolled } = await getBiometricAvailability();
+    if (!supported || !enrolled) {
+      setBiometricVisible(false);
+      return;
+    }
+
+    if (!biometricsEnabled) {
+      setMessage('No hay biometría habilitada para esta cuenta.');
+      return;
+    }
+
+    const result = await authenticateWithBiometrics();
+    if (!result.success) {
+      setMessage('No se pudo validar tu identidad.');
+      return;
+    }
+
+    try {
+      await signInWithBiometrics();
+      router.replace('/(tabs)');
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'No hay una sesión guardada para usar biometría.'
+      );
+    }
+  };
 
   return (
     <ImageBackground
@@ -28,7 +82,7 @@ export default function EntryScreen() {
             </View>
             <View style={styles.greetingBlock}>
               <ThemedText type="subtitle" style={styles.greetingText}>
-                Hola, {'{nombre}'}
+                Hola, {greetingName}
               </ThemedText>
               <Pressable style={styles.swapButton}>
                 <ThemedText type="smallBold" themeColor="textSecondary">
@@ -50,9 +104,22 @@ export default function EntryScreen() {
                 Iniciar sesión
               </ThemedText>
             </Pressable>
-            <Pressable style={[styles.biometricButton, { backgroundColor: theme.brand }]}>
-              <MaterialCommunityIcons name="fingerprint" size={22} color={theme.onBrand} />
-            </Pressable>
+            {biometricVisible ? (
+              <Pressable
+                onPress={handleBiometricPress}
+                style={({ pressed }) => [
+                  styles.biometricButton,
+                  { backgroundColor: theme.brand },
+                  pressed && styles.pressed,
+                ]}>
+                <MaterialCommunityIcons name="fingerprint" size={22} color={theme.onBrand} />
+              </Pressable>
+            ) : null}
+            {message ? (
+              <ThemedText type="small" style={[styles.messageText, { color: theme.accent }]}>
+                {message}
+              </ThemedText>
+            ) : null}
           </View>
         </View>
       </Screen>
@@ -111,6 +178,9 @@ const styles = StyleSheet.create({
   actions: {
     gap: Spacing.two,
   },
+  messageText: {
+    textAlign: 'center',
+  },
   primaryButton: {
     paddingVertical: Spacing.three,
     borderRadius: 28,
@@ -131,3 +201,4 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 });
+

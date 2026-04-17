@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+﻿import { Platform } from 'react-native';
 
 let cachedModule: typeof import('expo-local-authentication') | null = null;
 
@@ -12,17 +12,26 @@ async function getLocalAuthModule() {
   }
 }
 
-export async function canUseBiometrics(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
+export async function getBiometricAvailability() {
+  if (Platform.OS === 'web') {
+    return { supported: false, enrolled: false };
+  }
   try {
     const LocalAuthentication = await getLocalAuthModule();
-    if (!LocalAuthentication) return false;
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-    return hasHardware && isEnrolled;
+    if (!LocalAuthentication) {
+      return { supported: false, enrolled: false };
+    }
+    const supported = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = supported ? await LocalAuthentication.isEnrolledAsync() : false;
+    return { supported, enrolled };
   } catch {
-    return false;
+    return { supported: false, enrolled: false };
   }
+}
+
+export async function canUseBiometrics(): Promise<boolean> {
+  const availability = await getBiometricAvailability();
+  return availability.supported && availability.enrolled;
 }
 
 export async function authenticateWithBiometrics() {
@@ -40,3 +49,4 @@ export async function authenticateWithBiometrics() {
     return { success: false };
   }
 }
+
