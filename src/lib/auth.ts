@@ -150,8 +150,23 @@ export async function signInWithBiometrics() {
   return user;
 }
 
+export async function hasStoredBiometricSession() {
+  const state = await loadAuthState();
+  if (state.token) {
+    return true;
+  }
+  const biometricToken = await getItem<string | null>(STORAGE_KEYS.biometricToken, null);
+  return Boolean(biometricToken);
+}
+
 export async function setBiometricsEnabled(enabled: boolean) {
   const state = await loadAuthState();
+  if (enabled && state.token) {
+    await setItem<string>(STORAGE_KEYS.biometricToken, state.token);
+  }
+  if (!enabled) {
+    await removeItem(STORAGE_KEYS.biometricToken);
+  }
   await saveAuthState({ ...state, biometricsEnabled: enabled });
 }
 
@@ -162,6 +177,9 @@ export async function requestPasswordReset(email: string) {
 
 export async function signOut() {
   const state = await loadAuthState();
+  if (state.biometricsEnabled && state.token) {
+    await setItem<string>(STORAGE_KEYS.biometricToken, state.token);
+  }
   await saveAuthState({ token: null, user: null, biometricsEnabled: state.biometricsEnabled });
   await resetDuoState();
   await setItem(STORAGE_KEYS.transactions, []);

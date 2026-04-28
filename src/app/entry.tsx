@@ -8,50 +8,41 @@ import { Screen } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { signInWithBiometrics } from '@/lib/auth';
-import { authenticateWithBiometrics, getBiometricAvailability } from '@/lib/biometrics';
+import { hasStoredBiometricSession, signOut, signInWithBiometrics } from '@/lib/auth';
+import { authenticateWithBiometrics, canUseBiometrics } from '@/lib/biometrics';
 
 export default function EntryScreen() {
   const theme = useTheme();
-  const { user, biometricsEnabled } = useAuth();
+  const { user, loading, biometricsEnabled } = useAuth();
   const [biometricVisible, setBiometricVisible] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (loading) return;
+
     let active = true;
 
-    getBiometricAvailability().then(({ supported, enrolled }) => {
-      if (!active) return;
-      setBiometricVisible(Boolean(biometricsEnabled && supported && enrolled));
-    });
+    Promise.all([canUseBiometrics(), hasStoredBiometricSession()]).then(
+      ([available, hasStoredSession]) => {
+        if (!active) return;
+        setBiometricVisible(Boolean(biometricsEnabled || hasStoredSession || available));
+      }
+    );
 
     return () => {
       active = false;
     };
-  }, [biometricsEnabled]);
+  }, [loading, biometricsEnabled]);
 
-  const greetingName = useMemo(() => user?.name ?? '{nombre}', [user?.name]);
+  const greetingName = useMemo(() => user?.name ?? '', [user?.name]);
 
   const handleBiometricPress = async () => {
     setMessage('');
-
-    const { supported, enrolled } = await getBiometricAvailability();
-    if (!supported || !enrolled) {
-      setBiometricVisible(false);
-      return;
-    }
-
-    if (!biometricsEnabled) {
-      setMessage('No hay biometría habilitada para esta cuenta.');
-      return;
-    }
-
     const result = await authenticateWithBiometrics();
     if (!result.success) {
-      setMessage('No se pudo validar tu identidad.');
+      setMessage('No se pudo validar la biometría.');
       return;
     }
-
     try {
       await signInWithBiometrics();
       router.replace('/(tabs)');
@@ -62,6 +53,11 @@ export default function EntryScreen() {
           : 'No hay una sesión guardada para usar biometría.'
       );
     }
+  };
+
+  const handleSwap = async () => {
+    await signOut();
+    router.replace('/login');
   };
 
   return (
@@ -84,7 +80,7 @@ export default function EntryScreen() {
               <ThemedText type="subtitle" style={styles.greetingText}>
                 Hola, {greetingName}
               </ThemedText>
-              <Pressable style={styles.swapButton}>
+              <Pressable onPress={handleSwap} style={styles.swapButton}>
                 <ThemedText type="smallBold" themeColor="textSecondary">
                   No soy yo
                 </ThemedText>
