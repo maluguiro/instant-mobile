@@ -34,7 +34,7 @@ import {
   toISODate,
 } from '@/lib/finance';
 import { applyWeeklyRenewal, ensureWeeklyRenewal, skipWeeklyRenewal } from '@/lib/weekly-renewal';
-import { getSavingsGoals, SavingsGoal } from '@/lib/goals';
+import { applyScheduledGoalContributions, getSavingsGoals, SavingsGoal } from '@/lib/goals';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -103,8 +103,8 @@ export default function HomeScreen() {
         } else {
           weeklyPromptedRef.current = null;
         }
+        const loadedGoals = await applyScheduledGoalContributions();
         await refresh();
-        const loadedGoals = await getSavingsGoals();
         if (active) setGoals(loadedGoals);
         const [due, rec, inst] = await Promise.all([getDueDates(), getRecurringPayments(), getInstallments()]);
         if (active) {

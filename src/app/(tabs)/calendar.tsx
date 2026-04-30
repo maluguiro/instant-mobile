@@ -17,6 +17,7 @@ import { useDuo } from '@/hooks/use-duo';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
 import { scheduleLocalNotifications } from '@/lib/notifications';
+import { addTransaction } from '@/lib/transactions';
 import {
   addDueDate,
   addInstallment,
@@ -77,6 +78,25 @@ function daysUntil(date: string) {
 
 function formatCalendarDate(dateStr: string) {
   return dateStr.replace(/-/g, '');
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function getNextRecurringExecution(item: RecurringPayment) {
+  const current = new Date(item.nextDate + 'T00:00:00');
+  if (item.frequency === 'weekly') return addDays(current, 7);
+  if (item.frequency === 'everyX') return addDays(current, Math.max(item.everyDays ?? 1, 1));
+  return addMonths(current, 1);
 }
 
 async function openGoogleCalendarEvent(title: string, dateStr: string, details?: string) {
@@ -322,8 +342,7 @@ export default function CalendarScreen() {
         Alert.alert('Completá el vencimiento', 'Agregá un nombre y un monto válido.');
         return;
       }
-      const item: DueDate = {
-        id: String(Date.now()),
+      const payload = {
         name,
         amount,
         currency: dueCurrency,
@@ -334,12 +353,21 @@ export default function CalendarScreen() {
         important: dueImportant,
         calendarExported: dueCalendarExport,
         status: 'pending',
-        createdAt: new Date().toISOString(),
       };
-      const next = await addDueDate(item);
-      setDueDates(next);
-      if (dueCalendarExport) {
-        await openGoogleCalendarEvent(name, item.date, 'Pago único en Instant');
+      if (editingItem?.type === 'Pago único') {
+        const next = await updateDueDate(editingItem.id, payload);
+        setDueDates(next);
+      } else {
+        const item: DueDate = {
+          id: String(Date.now()),
+          createdAt: new Date().toISOString(),
+          ...payload,
+        };
+        const next = await addDueDate(item);
+        setDueDates(next);
+        if (dueCalendarExport) {
+          await openGoogleCalendarEvent(name, item.date, 'Pago único en Instant');
+        }
       }
     }
 
@@ -442,6 +470,28 @@ export default function CalendarScreen() {
     setRecImportant(Boolean(item.important));
     setRecCalendarExport(Boolean(item.calendarExported));
     setShowAdd(true);
+  };
+
+  const handleEditDueDate = (item: DueDate) => {
+    resetForms();
+    setEditingItem({ type: 'Pago único', id: item.id });
+    setAddType('Pago único');
+    setDueName(item.name);
+    setDueAmount(String(item.amount));
+    setDueCurrency(item.currency);
+    setDueDate(new Date(item.date + 'T00:00:00'));
+    setDueCategory(item.category ?? '');
+    setDueMethod(item.method ?? '');
+    setDueNote(item.note ?? '');
+    setDueImportant(Boolean(item.important));
+    setDueCalendarExport(Boolean(item.calendarExported));
+    setShowAdd(true);
+  };
+
+  const openDueDateEditor = (id: string) => {
+    const item = dueDates.find((entry) => entry.id === id);
+    if (!item) return;
+    handleEditDueDate(item);
   };
 
   const handleEditInstallment = (item: Installment) => {
@@ -614,6 +664,47 @@ export default function CalendarScreen() {
     }
   };
 
+  const handleRegisterRecurring = async (item: RecurringPayment) => {
+    const now = new Date();
+    await addTransaction({
+      id: String(Date.now()),
+      type: 'expense',
+      amount: item.amount,
+      currency: item.currency,
+      category: item.category || 'Recurrente',
+      date: item.nextDate,
+      method: item.method || item.name,
+      note: `Pago recurrente registrado: ${item.name}`,
+      createdAt: now.toISOString(),
+    });
+
+    const nextExecution = getNextRecurringExecution(item);
+    let status: RecurringPayment['status'] = 'active';
+
+    if (item.durationType === 'until' && item.endDate) {
+      const endDate = new Date(item.endDate + 'T00:00:00');
+      if (nextExecution > endDate) status = 'ended';
+    }
+
+    if (item.durationType === 'months' && item.durationMonths) {
+      const createdDate = new Date(item.createdAt);
+      const limitDate = addMonths(createdDate, item.durationMonths);
+      if (nextExecution > limitDate) status = 'ended';
+    }
+
+    const next = await updateRecurringPayment(item.id, {
+      nextDate: toISODate(nextExecution),
+      status,
+    });
+    setRecurring(next);
+    Alert.alert(
+      status === 'ended' ? 'Último pago registrado' : 'Pago registrado',
+      status === 'ended'
+        ? 'Se registró el pago y la recurrencia quedó finalizada.'
+        : 'Se registró el pago y se avanzó el próximo vencimiento.'
+    );
+  };
+
   const handleUpcomingPress = (source: 'due' | 'rec' | 'inst') => {
     if (source === 'rec') {
       setActiveTab('Recurrentes');
@@ -701,6 +792,11 @@ export default function CalendarScreen() {
                       </ThemedText>
                       {item.source === 'due' ? (
                         <View style={styles.actionRow}>
+                          <Pressable onPress={() => openDueDateEditor(item.id)} style={styles.actionButton}>
+                            <ThemedText type="small" style={{ color: primary }}>
+                              Editar
+                            </ThemedText>
+                          </Pressable>
                           <Pressable onPress={() => handleMarkDuePaid(item.id)} style={styles.actionButton}>
                             <ThemedText type="small" style={{ color: primary }}>
                               Marcar pagado
@@ -776,6 +872,15 @@ export default function CalendarScreen() {
                         Estado: {statusLabel}
                       </ThemedText>
                       <View style={styles.actionRow}>
+                        {item.status === 'active' ? (
+                          <Pressable
+                            onPress={() => handleRegisterRecurring(item)}
+                            style={styles.actionButton}>
+                            <ThemedText type="small" style={{ color: primary }}>
+                              Registrar pago
+                            </ThemedText>
+                          </Pressable>
+                        ) : null}
                         <Pressable
                           onPress={() => handleEditRecurring(item)}
                           style={styles.actionButton}>

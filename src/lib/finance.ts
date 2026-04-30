@@ -117,7 +117,7 @@ export function calculateTotals(transactions: Transaction[], currency?: Currency
 
   for (const tx of transactions) {
     if (currency && getTransactionCurrency(tx) !== currency) continue;
-    if (tx.system === 'weekly-rollover') {
+    if (tx.system === 'weekly-rollover' || tx.system === 'weekly-renewal') {
       continue;
     }
     if (isSavingsCategory(tx.category)) {
@@ -184,10 +184,9 @@ export function calculateAvailable(
       savingsReserved = 0;
     } else if (hasSavingsRenewalForMonth(transactions, settings.savingsCurrency, referenceDate)) {
       savingsReserved = 0;
-    } else {
-      savingsReserved = 0;
     }
   }
+
   const savingsTotal = savingsReserved + totals.savingsManual;
   const available = totals.income - totals.expense - savingsTotal;
 
@@ -245,6 +244,7 @@ export function summarizeByCategory(transactions: Transaction[], currency?: Curr
   const map = new Map<string, number>();
   for (const tx of transactions) {
     if (currency && getTransactionCurrency(tx) !== currency) continue;
+    if (tx.system === 'weekly-rollover' || tx.system === 'weekly-renewal') continue;
     if (tx.type !== 'expense' || isSavingsCategory(tx.category)) continue;
     map.set(tx.category, (map.get(tx.category) ?? 0) + tx.amount);
   }

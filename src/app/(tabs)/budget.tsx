@@ -36,10 +36,11 @@ import { applyWeeklyRenewal, ensureWeeklyRenewal, skipWeeklyRenewal } from '@/li
 import { addTransaction, deleteTransaction, getTransactions } from '@/lib/transactions';
 import {
   addSavingsGoal,
-  contributeToGoal,
+  applyScheduledGoalContributions,
   GoalContributionMode,
   GoalFrequency,
   getSavingsGoals,
+  recordGoalContribution,
   updateSavingsGoal,
   removeSavingsGoal,
   SavingsGoal,
@@ -230,8 +231,9 @@ export default function BudgetScreen() {
         } else {
           weeklyPromptedRef.current = null;
         }
+        const nextGoals = await applyScheduledGoalContributions();
         await refreshTransactions();
-        const loadedGoals = await getSavingsGoals();
+        const loadedGoals = nextGoals.length > 0 ? nextGoals : await getSavingsGoals();
         if (active) setGoals(loadedGoals);
       };
       run();
@@ -737,7 +739,7 @@ export default function BudgetScreen() {
   const handleContributeToGoal = async (goalId: string) => {
     const amount = Math.max(parseAmount(goalContribution[goalId] ?? ''), 0);
     if (!amount) return;
-    const next = await contributeToGoal(goalId, amount);
+    const next = await recordGoalContribution(goalId, amount);
     setGoals(next);
     setGoalContribution((prev) => ({ ...prev, [goalId]: '' }));
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
