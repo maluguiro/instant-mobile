@@ -9,6 +9,37 @@ import { applyTransactionMeta, removeTransactionMeta, setTransactionMeta, Transa
 type TransactionsListener = () => void;
 const transactionsListeners = new Set<TransactionsListener>();
 
+function normalizeText(value?: string) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function toTimestamp(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function areEquivalentTransactions(a: Transaction, b: Transaction) {
+  if (a.type !== b.type) return false;
+  if (a.amount !== b.amount) return false;
+  if ((a.currency ?? '') !== (b.currency ?? '')) return false;
+  if (normalizeText(a.category) !== normalizeText(b.category)) return false;
+  if (a.date !== b.date) return false;
+  if (normalizeText(a.method) !== normalizeText(b.method)) return false;
+  if (normalizeText(a.note) !== normalizeText(b.note)) return false;
+  if (Boolean(a.weekly) !== Boolean(b.weekly)) return false;
+  if ((a.system ?? null) !== (b.system ?? null)) return false;
+
+  const aCreatedAt = toTimestamp(a.createdAt);
+  const bCreatedAt = toTimestamp(b.createdAt);
+  if (aCreatedAt === null || bCreatedAt === null) return false;
+  return Math.abs(aCreatedAt - bCreatedAt) <= 2 * 60 * 1000;
+}
+
+function hasEquivalentTransaction(target: Transaction, items: Transaction[]) {
+  return items.some((item) => item.id === target.id || areEquivalentTransactions(item, target));
+}
+
 async function getPendingCreates(scope: Awaited<ReturnType<typeof getActiveDataScope>>): Promise<Transaction[]> {
   return getItem<Transaction[]>(scopedKey(STORAGE_KEYS.transactionsPendingCreates, scope), []);
 }
@@ -60,6 +91,9 @@ async function syncPending(
   if (pendingCreates.length > 0) {
     const remainingCreates: Transaction[] = [];
     for (const item of pendingCreates) {
+      if (hasEquivalentTransaction(item, next)) {
+        continue;
+      }
       try {
         const created = await apiRequest<Transaction>(withDuoQuery('/transactions', scope), {
           method: 'POST',
@@ -75,7 +109,7 @@ async function syncPending(
             weekly: item.weekly ?? false,
           },
         });
-        next = [created, ...next.filter((tx) => tx.id !== item.id)];
+        next = normalizeTransactions([created, ...next.filter((tx) => tx.id !== item.id && tx.id !== created.id)]);
       } catch {
         remainingCreates.push(item);
       }
@@ -112,12 +146,20 @@ async function getAuthToken() {
 
 function normalizeTransactions(items: Transaction[]) {
   const defaultCurrency = getCachedAppSettings().currency ?? 'ARS';
-  return items
+  const normalized = items
     .map((item) => ({
       currency: item.currency ?? defaultCurrency,
       ...item,
     }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const unique: Transaction[] = [];
+  for (const item of normalized) {
+    if (!hasEquivalentTransaction(item, unique)) {
+      unique.push(item);
+    }
+  }
+  return unique;
 }
 
 function splitMeta(payload: Partial<Transaction>) {
@@ -150,7 +192,9 @@ export async function getTransactions(): Promise<Transaction[]> {
     const pendingCreates = await getPendingCreates(scope);
     if (pendingCreates.length > 0) {
       const existingIds = new Set(items.map((tx) => tx.id));
-      const mergedLocal = pendingCreates.filter((tx) => !existingIds.has(tx.id));
+      const mergedLocal = pendingCreates.filter(
+        (tx) => !existingIds.has(tx.id) && !hasEquivalentTransaction(tx, items)
+      );
       items = [...mergedLocal, ...items];
     }
 
@@ -175,7 +219,7 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
   const token = await getAuthToken();
   if (!token) {
     const items = await getTransactions();
-    const next = [item, ...items];
+    const next = normalizeTransactions([item, ...items]);
     await setItem<Transaction[]>(storageKey, next);
     if (meta) {
       await setTransactionMeta(item.id, meta);
@@ -204,17 +248,18 @@ export async function addTransaction(item: Transaction, meta?: TransactionMeta):
       await setTransactionMeta(created.id, meta);
     }
     const cached = await getItem<Transaction[]>(storageKey, []);
-    const next = [created, ...cached];
+    const next = normalizeTransactions([created, ...cached]);
     await setItem<Transaction[]>(storageKey, next);
     const merged = await applyTransactionMeta(next);
     notifyTransactionsChanged();
     return normalizeTransactions(merged);
   } catch {
     const cached = await getItem<Transaction[]>(storageKey, []);
-    const next = [item, ...cached];
+    const next = normalizeTransactions([item, ...cached]);
     await setItem<Transaction[]>(storageKey, next);
     const pending = await getPendingCreates(scope);
-    await setPendingCreates(scope, [item, ...pending]);
+    const nextPending = hasEquivalentTransaction(item, pending) ? pending : [item, ...pending];
+    await setPendingCreates(scope, nextPending);
     if (meta) {
       await setTransactionMeta(item.id, meta);
     }

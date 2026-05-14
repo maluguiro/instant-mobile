@@ -1,5 +1,5 @@
 ﻿import { router, useLocalSearchParams, usePathname } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -17,6 +17,7 @@ import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppSettings } from '@/hooks/use-app-settings';
+import { safeGoBack } from '@/lib/navigation';
 
 function getNativeDateTimePicker() {
   if (Platform.OS === 'web') {
@@ -66,6 +67,7 @@ export default function AddTransactionScreen() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [useWeekly, setUseWeekly] = useState(false);
+  const [saving, setSaving] = useState(false);
   const theme = useTheme();
   const { settings: appSettings } = useAppSettings();
   const [currency, setCurrency] = useState(appSettings.currency);
@@ -89,7 +91,7 @@ export default function AddTransactionScreen() {
   }, [appSettings.currency]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       getPaymentMethods().then((stored) => {
         const merged = Array.from(new Set([...stored, ...BASE_PAYMENT_METHODS]));
         setMethods(merged);
@@ -98,13 +100,13 @@ export default function AddTransactionScreen() {
   );
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       getCategories().then(setExpenseCategories);
     }, [])
   );
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (!shouldAutoFocus) return;
       const timer = setTimeout(() => {
         amountInputRef.current?.focus();
@@ -149,6 +151,8 @@ export default function AddTransactionScreen() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     const normalized = amount.replace(/[^0-9,.-]/g, '').replace(',', '.');
     const value = Number(normalized);
     const category = useCustomCategory ? customCategory.trim() : selectedCategory;
@@ -171,38 +175,43 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    if (useCustomMethod && method) {
-      const updated = await addPaymentMethod(method);
-      const merged = Array.from(new Set([...updated, ...BASE_PAYMENT_METHODS]));
-      setMethods(merged);
-      setSelectedMethod(method);
-      setUseCustomMethod(false);
+    setSaving(true);
+    try {
+      if (useCustomMethod && method) {
+        const updated = await addPaymentMethod(method);
+        const merged = Array.from(new Set([...updated, ...BASE_PAYMENT_METHODS]));
+        setMethods(merged);
+        setSelectedMethod(method);
+        setUseCustomMethod(false);
+      }
+
+      if (useCustomCategory && category) {
+        const nextCategories = await addCategory(category);
+        setExpenseCategories(nextCategories);
+        setSelectedCategory(category);
+        setUseCustomCategory(false);
+      }
+
+      const now = new Date().toISOString();
+      const transaction: Transaction = {
+        id: String(Date.now()),
+        type,
+        amount: value,
+        currency,
+        category,
+        date: toISODate(selectedDate),
+        method,
+        note: note.trim() ? note.trim() : undefined,
+        weekly: type === 'expense' ? useWeekly : false,
+        createdAt: now,
+      };
+
+      await addStoredTransaction(transaction, { weekly: useWeekly });
+      setError('');
+      safeGoBack();
+    } finally {
+      setSaving(false);
     }
-
-    if (useCustomCategory && category) {
-      const nextCategories = await addCategory(category);
-      setExpenseCategories(nextCategories);
-      setSelectedCategory(category);
-      setUseCustomCategory(false);
-    }
-
-    const now = new Date().toISOString();
-    const transaction: Transaction = {
-      id: String(Date.now()),
-      type,
-      amount: value,
-      currency,
-      category,
-      date: toISODate(selectedDate),
-      method,
-      note: note.trim() ? note.trim() : undefined,
-      weekly: type === 'expense' ? useWeekly : false,
-      createdAt: now,
-    };
-
-    await addStoredTransaction(transaction);
-    setError('');
-    router.back();
   };
 
   return (
@@ -415,13 +424,14 @@ export default function AddTransactionScreen() {
 
       <Pressable
         onPress={handleSave}
+        disabled={saving}
         style={({ pressed }) => [
           styles.saveButton,
           { backgroundColor: theme.brand },
-          pressed && styles.buttonPressed,
+          (pressed || saving) && styles.buttonPressed,
         ]}>
         <ThemedText type="smallBold" style={[styles.saveText, { color: theme.onBrand }]}>
-          Guardar movimiento
+          {saving ? 'Guardando...' : 'Guardar movimiento'}
         </ThemedText>
       </Pressable>
 
@@ -528,13 +538,3 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 });
-
-
-
-
-
-
-
-
-
-

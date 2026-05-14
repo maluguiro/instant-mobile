@@ -117,7 +117,20 @@ export function calculateTotals(transactions: Transaction[], currency?: Currency
 
   for (const tx of transactions) {
     if (currency && getTransactionCurrency(tx) !== currency) continue;
-    if (tx.system === 'weekly-rollover' || tx.system === 'weekly-renewal') {
+    if (tx.system === 'weekly-renewal') {
+      expense += tx.amount;
+      continue;
+    }
+    if (tx.system === 'savings-renewal') {
+      savingsManual += Math.abs(tx.amount);
+      continue;
+    }
+    if (tx.system === 'weekly-rollover') {
+      if (isSavingsCategory(tx.category)) {
+        savingsManual += Math.abs(tx.amount);
+      } else {
+        expense += tx.amount;
+      }
       continue;
     }
     if (isSavingsCategory(tx.category)) {

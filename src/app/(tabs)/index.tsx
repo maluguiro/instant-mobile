@@ -366,7 +366,7 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
             <ThemedText type="subtitle" style={styles.secondaryValue}>
-              {formatCurrency(weeklyEnabled)}
+              {formatCurrency(weeklyRemaining)}
             </ThemedText>
           </View>
           <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />

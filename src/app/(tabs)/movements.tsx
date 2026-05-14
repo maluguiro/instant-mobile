@@ -12,6 +12,7 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import {
+  calculateTotals,
   endOfWeek,
   formatCurrency,
   formatShortDate,
@@ -30,7 +31,7 @@ import { addCategory, getCategories } from '@/lib/categories';
 import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
 import { Transaction } from '@/lib/types';
 
-const PERIOD_FILTERS = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado'] as const;
+const PERIOD_FILTERS = ['Todo', 'Hoy', 'Esta semana', 'Este mes', 'Personalizado'] as const;
 const TYPE_FILTERS = ['Todos', 'Entradas', 'Salidas'] as const;
 
 type PeriodFilter = (typeof PERIOD_FILTERS)[number];
@@ -63,7 +64,7 @@ export default function MovementsScreen() {
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   const NativeDateTimePicker = useMemo(() => getNativeDateTimePicker(), []);
   const [search, setSearch] = useState('');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('Este mes');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('Todo');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -189,24 +190,14 @@ export default function MovementsScreen() {
     customEndDate,
   ]);
 
-  const groups = useMemo(() => groupByDate(filtered), [filtered]);
+const groups = useMemo(() => groupByDate(filtered), [filtered]);
 
   const summary = useMemo(() => {
-    return filtered.reduce(
-      (acc, tx) => {
-        if (tx.currency !== appSettings.currency) return acc;
-        if (tx.type === 'income') {
-          acc.income += tx.amount;
-        } else {
-          acc.expense += tx.amount;
-        }
-        return acc;
-      },
-      { income: 0, expense: 0 }
-    );
+    const totals = calculateTotals(filtered, appSettings.currency);
+    const balance = totals.income - totals.expense - totals.savingsManual;
+    return { ...totals, balance };
   }, [filtered, appSettings.currency]);
 
-  const balance = summary.income - summary.expense;
   const hasOtherCurrencyTransactions = useMemo(
     () => hasOtherCurrencies(filtered, appSettings.currency),
     [filtered, appSettings.currency]
@@ -343,7 +334,7 @@ export default function MovementsScreen() {
         </View>
       </Card>
 
-      <Card>
+<Card>
         <SectionHeader title="Resumen del período" />
         <View style={styles.summaryRow}>
           <View>
@@ -362,12 +353,22 @@ export default function MovementsScreen() {
               {formatCurrency(summary.expense, appSettings.currency)}
             </ThemedText>
           </View>
+        </View>
+        <View style={styles.summaryRow}>
+          <View>
+            <ThemedText type="small" themeColor="textSecondary">
+              Ahorro
+            </ThemedText>
+            <ThemedText type="smallBold" style={{ color: theme.success }}>
+              {formatCurrency(summary.savingsManual, appSettings.currency)}
+            </ThemedText>
+          </View>
           <View>
             <ThemedText type="small" themeColor="textSecondary">
               Balance
             </ThemedText>
-            <ThemedText type="smallBold" style={{ color: balance >= 0 ? incomeColor : expenseColor }}>
-              {formatCurrency(balance, appSettings.currency)}
+            <ThemedText type="smallBold" style={{ color: summary.balance >= 0 ? incomeColor : expenseColor }}>
+              {formatCurrency(summary.balance, appSettings.currency)}
             </ThemedText>
           </View>
         </View>
@@ -820,7 +821,7 @@ export default function MovementsScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 onPress={() => {
-                  setPeriodFilter('Este mes');
+                  setPeriodFilter('Todo');
                   setTypeFilter('Todos');
                   setCategoryFilter('Todas');
                   setCustomStartDate(null);

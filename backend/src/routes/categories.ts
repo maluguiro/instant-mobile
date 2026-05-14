@@ -122,3 +122,18 @@ categoriesRouter.delete('/:name', async (req, res) => {
   await prisma.category.delete({ where: { id: existing.id } });
   return res.status(204).send();
 });
+
+categoriesRouter.delete('/clear', async (req, res) => {
+  try {
+    const result = await prisma.category.deleteMany({
+      where: { userId: req.userId },
+    });
+    // eslint-disable-next-line no-console
+    console.log('[categories][clear]', { userId: req.userId, deleted: result.count });
+    return res.json({ ok: true, deleted: result.count });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[categories][clear][error]', { userId: req.userId, error });
+    return res.status(500).json({ error: 'No se pudieron borrar las categorÃ­as.' });
+  }
+});

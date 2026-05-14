@@ -185,7 +185,7 @@ export default function InstantDuoScreen() {
         <Card style={[styles.duoCard, { backgroundColor: theme.duoSoft, borderColor: theme.duoAccent }]}>
           <SectionHeader title="Gestionar Duo" />
           <ThemedText type="small" themeColor="textSecondary">
-            Encontrá el código, compartir y disolver en Ajustes > Tu Duo.
+            Encontra el cÃ³digo, compartir y disolver en Ajustes > Tu Duo.
           </ThemedText>
           <View style={styles.actionRow}>
             <Pressable

@@ -8,29 +8,109 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  name           String
-  email          String          @unique
-  passwordHash   String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  categories     Category[]
-  duoMemberships DuoMember[]
-  methods        PaymentMethod[]
-  transactions   Transaction[]
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  passwordHash      String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  categories        Category[]
+  duoMemberships    DuoMember[]
+  methods           PaymentMethod[]
+  transactions      Transaction[]
+  recurringPayments RecurringPayment[]
+  dueDates          DueDate[]
+  installments      Installment[]
 }
 
 model Duo {
-  id           String          @id @default(cuid())
-  code         String          @unique
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  closedAt     DateTime?
-  closedById   String?
-  categories   Category[]
-  members      DuoMember[]
-  methods      PaymentMethod[]
-  transactions Transaction[]
+  id                String             @id @default(cuid())
+  code              String             @unique
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  closedAt          DateTime?
+  closedById        String?
+  categories        Category[]
+  members           DuoMember[]
+  methods           PaymentMethod[]
+  transactions      Transaction[]
+  recurringPayments RecurringPayment[]
+  dueDates          DueDate[]
+  installments      Installment[]
+}
+
+model RecurringPayment {
+  id               String    @id @default(cuid())
+  userId           String
+  duoId            String?
+  name             String
+  amount           Float
+  currency         String
+  frequency        String
+  everyDays        Int?
+  nextDate         DateTime
+  durationType     String    @default("indefinite")
+  durationMonths   Int?
+  endDate          DateTime?
+  category         String?
+  method           String?
+  important        Boolean   @default(false)
+  calendarExported Boolean  @default(false)
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  duo              Duo?      @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([duoId])
+  @@index([userId])
+}
+
+model DueDate {
+  id               String    @id @default(cuid())
+  userId           String
+  duoId            String?
+  name             String
+  amount           Float
+  currency         String
+  date             DateTime
+  category         String?
+  method           String?
+  note             String?
+  important        Boolean   @default(false)
+  calendarExported Boolean  @default(false)
+  status           String    @default("pending")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  duo              Duo?      @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([duoId])
+  @@index([userId])
+}
+
+model Installment {
+  id               String    @id @default(cuid())
+  userId           String
+  duoId            String?
+  name             String
+  amount           Float
+  currency         String
+  total            Int
+  current          Int       @default(1)
+  nextDate         DateTime
+  category         String?
+  method           String?
+  important        Boolean   @default(false)
+  calendarExported Boolean  @default(false)
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  duo              Duo?      @relation(fields: [duoId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([duoId])
+  @@index([userId])
 }
 
 model DuoMember {

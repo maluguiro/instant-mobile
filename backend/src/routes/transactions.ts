@@ -173,6 +173,35 @@ transactionsRouter.put('/:id', async (req, res) => {
   });
 });
 
+transactionsRouter.delete('/clear', async (req, res) => {
+  const transactionModel = getTransactionModel();
+  try {
+    const memberships = await prisma.duoMember.findMany({
+      where: { userId: req.userId },
+      select: { duoId: true },
+    });
+    const duoIds = memberships.map((membership) => membership.duoId);
+    const result = await transactionModel.deleteMany({
+      where:
+        duoIds.length > 0
+          ? {
+              OR: [
+                { userId: req.userId },
+                { duoId: { in: duoIds } },
+              ],
+            }
+          : { userId: req.userId },
+    });
+    // eslint-disable-next-line no-console
+    console.log('[transactions][clear]', { userId: req.userId, duoIds: duoIds.length, deleted: result.count });
+    return res.json({ ok: true, deleted: result.count });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[transactions][clear][error]', { userId: req.userId, error });
+    return res.status(500).json({ error: 'No se pudieron borrar las transacciones.' });
+  }
+});
+
 transactionsRouter.delete('/:id', async (req, res) => {
   const { id } = req.params;
   // eslint-disable-next-line no-console

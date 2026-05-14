@@ -122,3 +122,18 @@ paymentMethodsRouter.delete('/:name', async (req, res) => {
   await prisma.paymentMethod.delete({ where: { id: existing.id } });
   return res.status(204).send();
 });
+
+paymentMethodsRouter.delete('/clear', async (req, res) => {
+  try {
+    const result = await prisma.paymentMethod.deleteMany({
+      where: { userId: req.userId },
+    });
+    // eslint-disable-next-line no-console
+    console.log('[paymentMethods][clear]', { userId: req.userId, deleted: result.count });
+    return res.json({ ok: true, deleted: result.count });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[paymentMethods][clear][error]', { userId: req.userId, error });
+    return res.status(500).json({ error: 'No se pudieron borrar los mÃ©todos.' });
+  }
+});

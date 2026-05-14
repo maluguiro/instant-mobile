@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { requestPasswordReset } from '@/lib/auth';
+import { safeGoBack } from '@/lib/navigation';
 
 export default function ResetPasswordScreen() {
   const theme = useTheme();
@@ -67,7 +68,7 @@ export default function ResetPasswordScreen() {
           </ThemedText>
         </Pressable>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => safeGoBack('/login')}
           style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}>
           <ThemedText type="smallBold" themeColor="textSecondary">
             Volver a iniciar sesión

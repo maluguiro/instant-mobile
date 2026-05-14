@@ -606,6 +606,7 @@ export default function BudgetScreen() {
                 date: toISODate(now),
                 method: 'Ahorro programado',
                 note: 'Ahorro programado',
+                weekly: true,
                 createdAt: now.toISOString(),
               },
               { system: 'savings-renewal' }
@@ -1219,7 +1220,7 @@ export default function BudgetScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   Disponible semanal
                 </ThemedText>
-                <ThemedText type="smallBold">{formatCurrency(weeklyEnabled, appCurrency)}</ThemedText>
+                <ThemedText type="smallBold">{formatCurrency(weeklyRemaining, appCurrency)}</ThemedText>
               </View>
               <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />
               <View style={styles.progressRow}>

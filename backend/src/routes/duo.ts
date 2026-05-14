@@ -149,3 +149,41 @@ duoRouter.post('/leave', async (req, res) => {
   });
   return res.json({ ok: true });
 });
+
+duoRouter.post('/reset', async (req, res) => {
+  try {
+    const memberships = await prisma.duoMember.findMany({
+      where: { userId: req.userId },
+      include: { duo: true },
+    });
+
+    for (const membership of memberships) {
+      if (!membership.duo.closedAt) {
+        await prisma.duo.update({
+          where: { id: membership.duoId },
+          data: { closedAt: new Date(), closedById: req.userId },
+        });
+      }
+      await prisma.duoMember.update({
+        where: { id: membership.id },
+        data: { active: false },
+      });
+    }
+
+    const deletedDuoIds = memberships.map((m) => m.duoId);
+
+    if (deletedDuoIds.length > 0) {
+      await prisma.category.deleteMany({ where: { duoId: { in: deletedDuoIds } } });
+      await prisma.paymentMethod.deleteMany({ where: { duoId: { in: deletedDuoIds } } });
+      await prisma.transaction.deleteMany({ where: { duoId: { in: deletedDuoIds } } });
+    }
+
+    // eslint-disable-next-line no-console
+    console.log('[duo][reset]', { userId: req.userId, deletedDuos: deletedDuoIds.length });
+    return res.json({ ok: true, clearedDuos: deletedDuoIds.length });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[duo][reset][error]', { userId: req.userId, error });
+    return res.status(500).json({ error: 'No se pudo reiniciar Duo.' });
+  }
+});

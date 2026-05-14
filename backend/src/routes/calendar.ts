@@ -9,19 +9,19 @@ export const calendarRouter = Router();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ModelDelegate = any;
 
-function getDueDateModel(): ModelDelegate {
+function getDueDateModel(): ModelDelegate | null {
   const p = prisma as unknown as Record<string, unknown>;
-  return p.dueDate ?? p.dueDates;
+  return (p.dueDate ?? p.dueDates ?? null) as ModelDelegate | null;
 }
 
-function getRecurringPaymentModel(): ModelDelegate {
+function getRecurringPaymentModel(): ModelDelegate | null {
   const p = prisma as unknown as Record<string, unknown>;
-  return p.recurringPayment ?? p.recurringPayments;
+  return (p.recurringPayment ?? p.recurringPayments ?? null) as ModelDelegate | null;
 }
 
-function getInstallmentModel(): ModelDelegate {
+function getInstallmentModel(): ModelDelegate | null {
   const p = prisma as unknown as Record<string, unknown>;
-  return p.installment ?? p.installments;
+  return (p.installment ?? p.installments ?? null) as ModelDelegate | null;
 }
 
 const dueDateSchema = z.object({
@@ -69,11 +69,15 @@ const installmentSchema = z.object({
 });
 
 calendarRouter.get('/due-dates', async (req, res) => {
+  const model = getDueDateModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de vencimientos no está disponible.' });
+  }
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const items = await getDueDateModel().findMany({
+  const items = await model.findMany({
     where: scope.type === 'duo' ? { duoId: scope.duoId } : { userId: req.userId, duoId: null },
     orderBy: { createdAt: 'desc' },
   });
@@ -97,6 +101,10 @@ calendarRouter.get('/due-dates', async (req, res) => {
 });
 
 calendarRouter.post('/due-dates', async (req, res) => {
+  const model = getDueDateModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de vencimientos no está disponible.' });
+  }
   const parsed = dueDateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -106,7 +114,7 @@ calendarRouter.post('/due-dates', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const data = parsed.data;
-  const created = await getDueDateModel().create({
+  const created = await model.create({
     data: {
       userId: req.userId,
       duoId: scope.type === 'duo' ? scope.duoId : null,
@@ -139,6 +147,10 @@ calendarRouter.post('/due-dates', async (req, res) => {
 });
 
 calendarRouter.put('/due-dates/:id', async (req, res) => {
+  const model = getDueDateModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de vencimientos no está disponible.' });
+  }
   const parsed = dueDateSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -148,14 +160,14 @@ calendarRouter.put('/due-dates/:id', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const { id } = req.params;
-  const existing = await getDueDateModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Vencimiento no encontrado.' });
   }
   const data = parsed.data;
-  const updated = await getDueDateModel().update({
+  const updated = await model.update({
     where: { id },
     data: {
       name: data.name ?? existing.name,
@@ -188,27 +200,35 @@ calendarRouter.put('/due-dates/:id', async (req, res) => {
 });
 
 calendarRouter.delete('/due-dates/:id', async (req, res) => {
+  const model = getDueDateModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de vencimientos no está disponible.' });
+  }
   const { id } = req.params;
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const existing = await getDueDateModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Vencimiento no encontrado.' });
   }
-  await getDueDateModel().delete({ where: { id } });
+  await model.delete({ where: { id } });
   return res.status(204).send();
 });
 
 calendarRouter.get('/recurring', async (req, res) => {
+  const model = getRecurringPaymentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de pagos recurrentes no está disponible.' });
+  }
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const items = await getRecurringPaymentModel().findMany({
+  const items = await model.findMany({
     where: scope.type === 'duo' ? { duoId: scope.duoId } : { userId: req.userId, duoId: null },
     orderBy: { createdAt: 'desc' },
   });
@@ -236,6 +256,10 @@ calendarRouter.get('/recurring', async (req, res) => {
 });
 
 calendarRouter.post('/recurring', async (req, res) => {
+  const model = getRecurringPaymentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de pagos recurrentes no está disponible.' });
+  }
   const parsed = recurringSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -245,7 +269,7 @@ calendarRouter.post('/recurring', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const data = parsed.data;
-  const created = await getRecurringPaymentModel().create({
+  const created = await model.create({
     data: {
       userId: req.userId,
       duoId: scope.type === 'duo' ? scope.duoId : null,
@@ -286,6 +310,10 @@ calendarRouter.post('/recurring', async (req, res) => {
 });
 
 calendarRouter.put('/recurring/:id', async (req, res) => {
+  const model = getRecurringPaymentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de pagos recurrentes no está disponible.' });
+  }
   const parsed = recurringSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -295,14 +323,14 @@ calendarRouter.put('/recurring/:id', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const { id } = req.params;
-  const existing = await getRecurringPaymentModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Recurrente no encontrado.' });
   }
   const data = parsed.data;
-  const updated = await getRecurringPaymentModel().update({
+  const updated = await model.update({
     where: { id },
     data: {
       name: data.name ?? existing.name,
@@ -343,27 +371,35 @@ calendarRouter.put('/recurring/:id', async (req, res) => {
 });
 
 calendarRouter.delete('/recurring/:id', async (req, res) => {
+  const model = getRecurringPaymentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de pagos recurrentes no está disponible.' });
+  }
   const { id } = req.params;
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const existing = await getRecurringPaymentModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Recurrente no encontrado.' });
   }
-  await getRecurringPaymentModel().delete({ where: { id } });
+  await model.delete({ where: { id } });
   return res.status(204).send();
 });
 
 calendarRouter.get('/installments', async (req, res) => {
+  const model = getInstallmentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de cuotas no está disponible.' });
+  }
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const items = await getInstallmentModel().findMany({
+  const items = await model.findMany({
     where: scope.type === 'duo' ? { duoId: scope.duoId } : { userId: req.userId, duoId: null },
     orderBy: { createdAt: 'desc' },
   });
@@ -388,6 +424,10 @@ calendarRouter.get('/installments', async (req, res) => {
 });
 
 calendarRouter.post('/installments', async (req, res) => {
+  const model = getInstallmentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de cuotas no está disponible.' });
+  }
   const parsed = installmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -397,7 +437,7 @@ calendarRouter.post('/installments', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const data = parsed.data;
-  const created = await getInstallmentModel().create({
+  const created = await model.create({
     data: {
       userId: req.userId,
       duoId: scope.type === 'duo' ? scope.duoId : null,
@@ -432,6 +472,10 @@ calendarRouter.post('/installments', async (req, res) => {
 });
 
 calendarRouter.put('/installments/:id', async (req, res) => {
+  const model = getInstallmentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de cuotas no está disponible.' });
+  }
   const parsed = installmentSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
@@ -441,14 +485,14 @@ calendarRouter.put('/installments/:id', async (req, res) => {
     return res.status(scope.status).json({ error: scope.message });
   }
   const { id } = req.params;
-  const existing = await getInstallmentModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Cuota no encontrada.' });
   }
   const data = parsed.data;
-  const updated = await getInstallmentModel().update({
+  const updated = await model.update({
     where: { id },
     data: {
       name: data.name ?? existing.name,
@@ -483,17 +527,21 @@ calendarRouter.put('/installments/:id', async (req, res) => {
 });
 
 calendarRouter.delete('/installments/:id', async (req, res) => {
+  const model = getInstallmentModel();
+  if (!model) {
+    return res.status(501).json({ error: 'El almacenamiento remoto de cuotas no está disponible.' });
+  }
   const { id } = req.params;
   const scope = await resolveDuoScope(req.userId, req.query.duoId);
   if ('status' in scope) {
     return res.status(scope.status).json({ error: scope.message });
   }
-  const existing = await getInstallmentModel().findFirst({
+  const existing = await model.findFirst({
     where: scope.type === 'duo' ? { id, duoId: scope.duoId } : { id, userId: req.userId, duoId: null },
   });
   if (!existing) {
     return res.status(404).json({ error: 'Cuota no encontrada.' });
   }
-  await getInstallmentModel().delete({ where: { id } });
+  await model.delete({ where: { id } });
   return res.status(204).send();
 });

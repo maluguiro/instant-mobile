@@ -65,6 +65,11 @@ function isDuoScope(scope: Awaited<ReturnType<typeof getActiveDataScope>>) {
   return scope.type === 'duo';
 }
 
+function isUnsupportedRemoteStorage(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('almacenamiento remoto') && message.includes('no est');
+}
+
 export async function getDueDates(): Promise<DueDate[]> {
   const scope = await getActiveDataScope();
   const items = await getItem<DueDate[]>(scopedKey(STORAGE_KEYS.dueDates, scope), []);
@@ -85,7 +90,16 @@ export async function getDueDates(): Promise<DueDate[]> {
       }));
       await setItem(scopedKey(STORAGE_KEYS.dueDates, scope), normalized);
       return normalized;
-    } catch {
+    } catch (error) {
+      if (isUnsupportedRemoteStorage(error)) {
+        return items.map((item) => ({
+          status: 'pending',
+          currency: item.currency ?? defaultCurrency,
+          important: Boolean(item.important),
+          calendarExported: Boolean(item.calendarExported),
+          ...item,
+        }));
+      }
       return items.map((item) => ({
         status: 'pending',
         currency: item.currency ?? defaultCurrency,
@@ -114,14 +128,20 @@ export async function addDueDate(item: DueDate): Promise<DueDate[]> {
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const created = await apiRequest<DueDate>(withDuoQuery('/calendar/due-dates', scope), {
-      method: 'POST',
-      token,
-      body: item,
-    });
-    const next = [created, ...items];
-    await saveDueDates(next);
-    return next;
+    try {
+      const created = await apiRequest<DueDate>(withDuoQuery('/calendar/due-dates', scope), {
+        method: 'POST',
+        token,
+        body: item,
+      });
+      const next = [created, ...items];
+      await saveDueDates(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = [item, ...items];
   await saveDueDates(next);
@@ -136,14 +156,20 @@ export async function updateDueDate(
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const updated = await apiRequest<DueDate>(withDuoQuery(`/calendar/due-dates/${id}`, scope), {
-      method: 'PUT',
-      token,
-      body: patch,
-    });
-    const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
-    await saveDueDates(next);
-    return next;
+    try {
+      const updated = await apiRequest<DueDate>(withDuoQuery(`/calendar/due-dates/${id}`, scope), {
+        method: 'PUT',
+        token,
+        body: patch,
+      });
+      const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
+      await saveDueDates(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.map((item) => (item.id === id ? { ...item, ...patch } : item));
   await saveDueDates(next);
@@ -155,7 +181,13 @@ export async function removeDueDate(id: string): Promise<DueDate[]> {
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    await apiRequest(withDuoQuery(`/calendar/due-dates/${id}`, scope), { method: 'DELETE', token });
+    try {
+      await apiRequest(withDuoQuery(`/calendar/due-dates/${id}`, scope), { method: 'DELETE', token });
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.filter((item) => item.id !== id);
   await saveDueDates(next);
@@ -184,7 +216,18 @@ export async function getRecurringPayments(): Promise<RecurringPayment[]> {
       }));
       await setItem(scopedKey(STORAGE_KEYS.recurringPayments, scope), normalized);
       return normalized;
-    } catch {
+    } catch (error) {
+      if (isUnsupportedRemoteStorage(error)) {
+        return items.map((item) => ({
+          status: 'active',
+          durationType: 'indefinite',
+          durationMonths: 0,
+          currency: item.currency ?? defaultCurrency,
+          important: Boolean(item.important),
+          calendarExported: Boolean(item.calendarExported),
+          ...item,
+        }));
+      }
       return items.map((item) => ({
         status: 'active',
         durationType: 'indefinite',
@@ -217,14 +260,20 @@ export async function addRecurringPayment(item: RecurringPayment): Promise<Recur
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const created = await apiRequest<RecurringPayment>(withDuoQuery('/calendar/recurring', scope), {
-      method: 'POST',
-      token,
-      body: item,
-    });
-    const next = [created, ...items];
-    await saveRecurringPayments(next);
-    return next;
+    try {
+      const created = await apiRequest<RecurringPayment>(withDuoQuery('/calendar/recurring', scope), {
+        method: 'POST',
+        token,
+        body: item,
+      });
+      const next = [created, ...items];
+      await saveRecurringPayments(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = [item, ...items];
   await saveRecurringPayments(next);
@@ -239,14 +288,20 @@ export async function updateRecurringPayment(
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const updated = await apiRequest<RecurringPayment>(withDuoQuery(`/calendar/recurring/${id}`, scope), {
-      method: 'PUT',
-      token,
-      body: patch,
-    });
-    const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
-    await saveRecurringPayments(next);
-    return next;
+    try {
+      const updated = await apiRequest<RecurringPayment>(withDuoQuery(`/calendar/recurring/${id}`, scope), {
+        method: 'PUT',
+        token,
+        body: patch,
+      });
+      const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
+      await saveRecurringPayments(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.map((item) => (item.id === id ? { ...item, ...patch } : item));
   await saveRecurringPayments(next);
@@ -258,7 +313,13 @@ export async function removeRecurringPayment(id: string): Promise<RecurringPayme
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    await apiRequest(withDuoQuery(`/calendar/recurring/${id}`, scope), { method: 'DELETE', token });
+    try {
+      await apiRequest(withDuoQuery(`/calendar/recurring/${id}`, scope), { method: 'DELETE', token });
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.filter((item) => item.id !== id);
   await saveRecurringPayments(next);
@@ -285,7 +346,16 @@ export async function getInstallments(): Promise<Installment[]> {
       }));
       await setItem(scopedKey(STORAGE_KEYS.installments, scope), normalized);
       return normalized;
-    } catch {
+    } catch (error) {
+      if (isUnsupportedRemoteStorage(error)) {
+        return items.map((item) => ({
+          status: item.current >= item.total ? 'completed' : 'active',
+          currency: item.currency ?? defaultCurrency,
+          important: Boolean(item.important),
+          calendarExported: Boolean(item.calendarExported),
+          ...item,
+        }));
+      }
       return items.map((item) => ({
         status: item.current >= item.total ? 'completed' : 'active',
         currency: item.currency ?? defaultCurrency,
@@ -314,14 +384,20 @@ export async function addInstallment(item: Installment): Promise<Installment[]> 
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const created = await apiRequest<Installment>(withDuoQuery('/calendar/installments', scope), {
-      method: 'POST',
-      token,
-      body: item,
-    });
-    const next = [created, ...items];
-    await saveInstallments(next);
-    return next;
+    try {
+      const created = await apiRequest<Installment>(withDuoQuery('/calendar/installments', scope), {
+        method: 'POST',
+        token,
+        body: item,
+      });
+      const next = [created, ...items];
+      await saveInstallments(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = [item, ...items];
   await saveInstallments(next);
@@ -336,14 +412,20 @@ export async function updateInstallment(
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    const updated = await apiRequest<Installment>(withDuoQuery(`/calendar/installments/${id}`, scope), {
-      method: 'PUT',
-      token,
-      body: patch,
-    });
-    const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
-    await saveInstallments(next);
-    return next;
+    try {
+      const updated = await apiRequest<Installment>(withDuoQuery(`/calendar/installments/${id}`, scope), {
+        method: 'PUT',
+        token,
+        body: patch,
+      });
+      const next = items.map((item) => (item.id === id ? { ...item, ...updated } : item));
+      await saveInstallments(next);
+      return next;
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.map((item) => (item.id === id ? { ...item, ...patch } : item));
   await saveInstallments(next);
@@ -355,7 +437,13 @@ export async function removeInstallment(id: string): Promise<Installment[]> {
   const scope = await getActiveDataScope();
   const token = await getAuthToken();
   if (isDuoScope(scope) && token) {
-    await apiRequest(withDuoQuery(`/calendar/installments/${id}`, scope), { method: 'DELETE', token });
+    try {
+      await apiRequest(withDuoQuery(`/calendar/installments/${id}`, scope), { method: 'DELETE', token });
+    } catch (error) {
+      if (!isUnsupportedRemoteStorage(error)) {
+        throw error;
+      }
+    }
   }
   const next = items.filter((item) => item.id !== id);
   await saveInstallments(next);
