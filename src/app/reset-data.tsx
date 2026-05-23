@@ -18,13 +18,20 @@ export default function ResetDataScreen() {
   const handleReset = async () => {
     setIsResetting(true);
     try {
-      await clearUserData();
-      Alert.alert(
-        'Datos eliminados',
-        'Tu cuenta sigue existiendo. Se borraron todos los datos del servidor y del dispositivo.'
-      );
+      const result = await clearUserData();
+      if (result.status === 'success') {
+        Alert.alert(
+          'Datos eliminados',
+          'Tu cuenta sigue existiendo. Se borraron todos los datos del servidor y del dispositivo.'
+        );
+      } else {
+        Alert.alert(
+          'Limpieza parcial',
+          'Se borraron todos los datos del dispositivo, pero quedó pendiente parte de la limpieza remota. Tu cuenta y sesión siguen activas.'
+        );
+      }
     } catch {
-      Alert.alert('Error', 'No se pudieron eliminar los datos. Probá de nuevo.');
+      Alert.alert('Error', 'No se pudieron eliminar los datos del dispositivo. Probá de nuevo.');
     } finally {
       setIsResetting(false);
       setConfirmStep(0);
@@ -46,13 +53,13 @@ export default function ResetDataScreen() {
         <View style={styles.list}>
           {[
             ['Movimientos', 'Del dispositivo y del servidor'],
-            ['Categorías personalizadas', 'Del servidor (se regeneran)'],
-            ['Métodos de pago', 'Del servidor (se regeneran)'],
-            ['Presupuesto semanal y mensual', 'Solo local'],
-            ['Ahorro configurado', 'Solo local'],
-            ['Metas de ahorro', 'Solo local'],
-            ['Vencimientos, cuotas y pagos recurrentes', 'Solo local'],
-            ['Todo historial y scopes Duo', 'Servidor + local'],
+            ['Categorías personalizadas', 'Del dispositivo y del servidor'],
+            ['Métodos de pago', 'Del dispositivo y del servidor'],
+            ['Presupuesto semanal y mensual', 'Del dispositivo'],
+            ['Ahorro configurado', 'Del dispositivo'],
+            ['Metas de ahorro', 'Del dispositivo'],
+            ['Vencimientos, cuotas y pagos recurrentes', 'Del dispositivo y del servidor si existe soporte remoto'],
+            ['Datos funcionales de Duo', 'Del dispositivo y del servidor'],
           ].map(([label, note], i) => (
             <View key={i} style={styles.listItem}>
               <ThemedText type="small" themeColor="textSecondary">
@@ -72,12 +79,7 @@ export default function ResetDataScreen() {
       <Card variant="soft">
         <SectionHeader title="Qué se conserva" />
         <View style={styles.list}>
-          {[
-            'Tu cuenta de usuario',
-            'Login y sesión activa',
-            'Biometría activada',
-            'Tu nombre',
-          ].map((item, i) => (
+          {['Tu cuenta de usuario', 'Login y sesión activa', 'Biometría activada', 'Tu nombre'].map((item, i) => (
             <View key={i} style={styles.listItem}>
               <ThemedText type="small" style={{ color: theme.success }}>
                 •
@@ -92,8 +94,7 @@ export default function ResetDataScreen() {
 
       <Card variant="soft">
         <ThemedText type="small" themeColor="textSecondary">
-          Esta acción borra todos los datos tanto del servidor como del dispositivo. No hay forma de
-          recuperarlos.
+          Esta acción borra todos los datos funcionales del producto. Si el servidor no puede completar alguna parte, la app te lo va a informar sin dejar el resultado ambiguo.
         </ThemedText>
         <Pressable
           onPress={() => setConfirmStep(1)}
@@ -122,8 +123,7 @@ export default function ResetDataScreen() {
               <>
                 <SectionHeader title="¿Querés borrar todo?" />
                 <ThemedText type="small" themeColor="textSecondary">
-                  Se eliminarán del servidor: movimientos, categorías y métodos personalizados. Se
-                  limpiará todo lo local. Tu cuenta sigue activa.
+                  Se eliminarán movimientos, ahorro, metas, plan semanal, calendario, cuotas, recurrentes y datos de Duo. Tu cuenta y tu sesión se conservan.
                 </ThemedText>
                 <View style={styles.modalActionsRow}>
                   <Pressable
@@ -261,20 +261,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: 14,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: Spacing.one + 1,
+    borderRadius: 14,
     paddingHorizontal: Spacing.two,
-    fontSize: 14,
-    fontWeight: '600',
+    paddingVertical: Spacing.two,
   },
   dangerText: {
-    color: '#7A3B2A',
+    letterSpacing: 0.2,
   },
   pressed: {
-    opacity: 0.85,
+    opacity: 0.8,
   },
 });

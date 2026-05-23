@@ -125,8 +125,18 @@ paymentMethodsRouter.delete('/:name', async (req, res) => {
 
 paymentMethodsRouter.delete('/clear', async (req, res) => {
   try {
-    const result = await prisma.paymentMethod.deleteMany({
+    const memberships = await prisma.duoMember.findMany({
       where: { userId: req.userId },
+      select: { duoId: true },
+    });
+    const duoIds = memberships.map((membership) => membership.duoId);
+    const result = await prisma.paymentMethod.deleteMany({
+      where:
+        duoIds.length > 0
+          ? {
+              OR: [{ userId: req.userId }, { duoId: { in: duoIds } }],
+            }
+          : { userId: req.userId },
     });
     // eslint-disable-next-line no-console
     console.log('[paymentMethods][clear]', { userId: req.userId, deleted: result.count });

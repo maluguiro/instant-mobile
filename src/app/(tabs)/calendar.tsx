@@ -2,7 +2,19 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Linking, Modal, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -16,6 +28,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useDuo } from '@/hooks/use-duo';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { formatCurrency, formatShortDate, toISODate } from '@/lib/finance';
+import { formatAmountInput, parseAmountInput } from '@/lib/amount-input';
 import { scheduleLocalNotifications } from '@/lib/notifications';
 import { addTransaction } from '@/lib/transactions';
 import {
@@ -26,6 +39,7 @@ import {
   getDueDates,
   getInstallments,
   getRecurringPayments,
+  getRecurringVisualState,
   Installment,
   RecurringPayment,
   removeDueDate,
@@ -62,10 +76,7 @@ function getNativeDateTimePicker() {
 }
 
 function parseAmount(value: string): number {
-  const cleaned = value.replace(/[^0-9,.-]/g, '');
-  const normalized = cleaned.replace(/\./g, '').replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isNaN(parsed) ? 0 : parsed;
+  return parseAmountInput(value);
 }
 
 function daysUntil(date: string) {
@@ -457,7 +468,7 @@ export default function CalendarScreen() {
     setEditingItem({ type: 'Recurrente', id: item.id });
     setAddType('Recurrente');
     setRecName(item.name);
-    setRecAmount(String(item.amount));
+    setRecAmount(formatAmountInput(String(item.amount)));
     setRecCurrency(item.currency);
     setRecFrequency(item.frequency);
     setRecEveryDays(String(item.everyDays ?? 30));
@@ -477,7 +488,7 @@ export default function CalendarScreen() {
     setEditingItem({ type: 'Pago único', id: item.id });
     setAddType('Pago único');
     setDueName(item.name);
-    setDueAmount(String(item.amount));
+    setDueAmount(formatAmountInput(String(item.amount)));
     setDueCurrency(item.currency);
     setDueDate(new Date(item.date + 'T00:00:00'));
     setDueCategory(item.category ?? '');
@@ -499,7 +510,7 @@ export default function CalendarScreen() {
     setEditingItem({ type: 'Cuota', id: item.id });
     setAddType('Cuota');
     setInstName(item.name);
-    setInstAmount(String(item.amount));
+    setInstAmount(formatAmountInput(String(item.amount)));
     setInstCurrency(item.currency);
     setInstTotal(String(item.total));
     setInstCurrent(String(item.current));
@@ -762,7 +773,7 @@ export default function CalendarScreen() {
               {upcomingItems.map((item) => {
                 const remaining = daysUntil(item.date);
                 const statusLabel =
-                  remaining <= 0 ? 'Hoy' : remaining <= 3 ? 'Pronto' : `En ${remaining} días`;
+                  remaining < 0 ? 'Vencido' : remaining === 0 ? 'Hoy' : remaining <= 3 ? 'Pronto' : `En ${remaining} días`;
                 const statusColor =
                   remaining <= 0 ? accentAlt : remaining <= 3 ? theme.warning : theme.textSecondary;
                 const dateLabel =
@@ -841,6 +852,7 @@ export default function CalendarScreen() {
           ) : (
             <View style={styles.listGap}>
               {sortedRecurring.map((item) => {
+                const recurringState = getRecurringVisualState(item);
                 const freqLabel =
                   item.frequency === 'weekly'
                     ? 'Semanal'
@@ -853,8 +865,6 @@ export default function CalendarScreen() {
                     : item.durationType === 'until'
                       ? `Hasta ${formatShortDate(item.endDate || item.nextDate)}`
                       : 'Indefinido';
-                const statusLabel =
-                  item.status === 'paused' ? 'Pausado' : item.status === 'ended' ? 'Finalizado' : 'Activo';
                 return (
                   <View key={item.id} style={styles.rowBetween}>
                     <View style={styles.itemInfo}>
@@ -866,10 +876,14 @@ export default function CalendarScreen() {
                         {freqLabel} · {durationLabel}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        Próximo pago: {formatShortDate(item.nextDate)}
+                        {recurringState.overdue
+                          ? `Pago pendiente desde ${formatShortDate(item.nextDate)}`
+                          : item.status === 'ended'
+                            ? `Último pago: ${formatShortDate(item.nextDate)}`
+                            : `Próximo pago: ${formatShortDate(item.nextDate)}`}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        Estado: {statusLabel}
+                        Estado: {recurringState.statusLabel}
                       </ThemedText>
                       <View style={styles.actionRow}>
                         {item.status === 'active' ? (
@@ -1005,508 +1019,518 @@ export default function CalendarScreen() {
         animationType="fade"
         onRequestClose={() => setShowAdd(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText type="subtitle">{isEditing ? 'Editar registro' : 'Nuevo registro'}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {isEditing ? 'Actualizá los datos del pago.' : 'Elegí qué tipo de pago querés cargar.'}
-              </ThemedText>
-            </View>
-
-            <View style={styles.tabsRow}>
-              {ADD_TYPES.map((type) => (
-                <SelectableOption
-                  key={type}
-                  label={type}
-                  selected={addType === type}
-                  onPress={() => {
-                    setEditingItem(null);
-                    setAddType(type);
-                  }}
-                />
-              ))}
-            </View>
-
-            {addType === 'Pago único' ? (
-              <View style={styles.formStack}>
-                <TextInput
-                  placeholder="Nombre"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={dueName}
-                  onChangeText={setDueName}
-                />
-                <TextInput
-                  placeholder="Monto"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={dueAmount}
-                  onChangeText={setDueAmount}
-                  keyboardType="numeric"
-                />
-                <CurrencySelect
-                  value={dueCurrency}
-                  onChange={setDueCurrency}
-                  compact
-                  style={styles.inlineCurrency}
-                  label=""
-                />
-                <Pressable
-                  onPress={() => {
-                    if (NativeDateTimePicker) {
-                      setPickerTarget('dueDate');
-                      setShowPicker(true);
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.dateBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Fecha
-                  </ThemedText>
-                  <ThemedText type="smallBold">{formatShortDate(toISODate(dueDate))}</ThemedText>
-                </Pressable>
-                {Platform.OS === 'web' ? (
-                  <TextInput
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                    value={toISODate(dueDate)}
-                    onChangeText={(value) => {
-                      const date = new Date(value + 'T00:00:00');
-                      if (!Number.isNaN(date.getTime())) {
-                        setDueDate(date);
-                      }
-                    }}
-                  />
-                ) : null}
-
-                <Pressable
-                  onPress={() => openSelect('dueCategory')}
-                  style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Categoría
-                  </ThemedText>
-                  <ThemedText type="smallBold">{dueCategory || 'Seleccionar'}</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => openSelect('dueMethod')}
-                  style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Método
-                  </ThemedText>
-                  <ThemedText type="smallBold">{dueMethod || 'Seleccionar'}</ThemedText>
-                </Pressable>
-                <TextInput
-                  placeholder="Nota (opcional)"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={dueNote}
-                  onChangeText={setDueNote}
-                />
-                <View style={styles.toggleRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Marcar como importante
-                  </ThemedText>
-                  <Switch
-                    value={dueImportant}
-                    onValueChange={(value) =>
-                      handleImportantToggle(value, setDueImportant, () => setDueCalendarExport(false))
-                    }
-                    trackColor={{ false: theme.border, true: primarySoft }}
-                    thumbColor={dueImportant ? primary : theme.onBrand}
-                  />
-                </View>
-                {dueImportant ? (
-                  <View style={styles.toggleRow}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Agregar a Google Calendar
-                    </ThemedText>
-                    <Switch
-                      value={dueCalendarExport}
-                      onValueChange={setDueCalendarExport}
-                      trackColor={{ false: theme.border, true: primarySoft }}
-                      thumbColor={dueCalendarExport ? primary : theme.onBrand}
-                    />
-                  </View>
-                ) : null}
-                {importantHint ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {importantHint}
-                  </ThemedText>
-                ) : null}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalKeyboardWrap}>
+            <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText type="subtitle">{isEditing ? 'Editar registro' : 'Nuevo registro'}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {isEditing ? 'Actualizá los datos del pago.' : 'Elegí qué tipo de pago querés cargar.'}
+                </ThemedText>
               </View>
-            ) : null}
 
-            {addType === 'Recurrente' ? (
-              <View style={styles.formStack}>
-                <TextInput
-                  placeholder="Nombre"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={recName}
-                  onChangeText={setRecName}
-                />
-                <TextInput
-                  placeholder="Monto"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={recAmount}
-                  onChangeText={setRecAmount}
-                  keyboardType="numeric"
-                />
-                <CurrencySelect
-                  value={recCurrency}
-                  onChange={setRecCurrency}
-                  compact
-                  style={styles.inlineCurrency}
-                  label=""
-                />
-
-                <View style={styles.inlineLabel}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Frecuencia
-                  </ThemedText>
-                </View>
-                <View style={styles.tabsRow}>
-                  {['Semanal', 'Mensual', 'Cada X días'].map((label) => (
-                    <SelectableOption
-                      key={label}
-                      label={label}
-                      selected={
-                        (label === 'Semanal' && recFrequency === 'weekly') ||
-                        (label === 'Mensual' && recFrequency === 'monthly') ||
-                        (label === 'Cada X días' && recFrequency === 'everyX')
-                      }
-                      onPress={() =>
-                        setRecFrequency(
-                          label === 'Semanal' ? 'weekly' : label === 'Mensual' ? 'monthly' : 'everyX'
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-                {recFrequency === 'everyX' ? (
-                  <TextInput
-                    placeholder="Cada cuántos días"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                    value={recEveryDays}
-                    onChangeText={setRecEveryDays}
-                    keyboardType="numeric"
-                  />
-                ) : null}
-
-                <Pressable
-                  onPress={() => {
-                    if (NativeDateTimePicker) {
-                      setPickerTarget('recNextDate');
-                      setShowPicker(true);
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.dateBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Próxima fecha
-                  </ThemedText>
-                  <ThemedText type="smallBold">{formatShortDate(toISODate(recNextDate))}</ThemedText>
-                </Pressable>
-                {Platform.OS === 'web' ? (
-                  <TextInput
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                    value={toISODate(recNextDate)}
-                    onChangeText={(value) => {
-                      const date = new Date(value + 'T00:00:00');
-                      if (!Number.isNaN(date.getTime())) {
-                        setRecNextDate(date);
-                      }
-                    }}
-                  />
-                ) : null}
-
-                <View style={styles.inlineLabel}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Duración
-                  </ThemedText>
-                </View>
-                <View style={styles.tabsRow}>
-                  {['Indefinido', 'Por X meses', 'Hasta fecha'].map((label) => (
-                    <SelectableOption
-                      key={label}
-                      label={label}
-                      selected={
-                        (label === 'Indefinido' && recDurationType === 'indefinite') ||
-                        (label === 'Por X meses' && recDurationType === 'months') ||
-                        (label === 'Hasta fecha' && recDurationType === 'until')
-                      }
-                      onPress={() =>
-                        setRecDurationType(
-                          label === 'Indefinido' ? 'indefinite' : label === 'Por X meses' ? 'months' : 'until'
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-                {recDurationType === 'months' ? (
-                  <TextInput
-                    placeholder="Cantidad de meses"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                    value={recDurationMonths}
-                    onChangeText={setRecDurationMonths}
-                    keyboardType="numeric"
-                  />
-                ) : null}
-                {recDurationType === 'until' ? (
-                  <Pressable
+              <View style={styles.tabsRow}>
+                {ADD_TYPES.map((type) => (
+                  <SelectableOption
+                    key={type}
+                    label={type}
+                    selected={addType === type}
                     onPress={() => {
-                      if (NativeDateTimePicker) {
-                        setPickerTarget('recEndDate');
-                        setShowPicker(true);
-                      }
+                      setEditingItem(null);
+                      setAddType(type);
                     }}
-                    style={({ pressed }) => [
-                      styles.dateBox,
-                      { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                      pressed && styles.pressed,
-                    ]}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Hasta fecha
-                    </ThemedText>
-                    <ThemedText type="smallBold">{formatShortDate(toISODate(recEndDate))}</ThemedText>
-                  </Pressable>
-                ) : null}
-
-                <Pressable
-                  onPress={() => openSelect('recCategory')}
-                  style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Categoría
-                  </ThemedText>
-                  <ThemedText type="smallBold">{recCategory || 'Seleccionar'}</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => openSelect('recMethod')}
-                  style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Método
-                  </ThemedText>
-                  <ThemedText type="smallBold">{recMethod || 'Seleccionar'}</ThemedText>
-                </Pressable>
-                <View style={styles.toggleRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Marcar como importante
-                  </ThemedText>
-                  <Switch
-                    value={recImportant}
-                    onValueChange={(value) =>
-                      handleImportantToggle(value, setRecImportant, () => setRecCalendarExport(false))
-                    }
-                    trackColor={{ false: theme.border, true: primarySoft }}
-                    thumbColor={recImportant ? primary : theme.onBrand}
                   />
-                </View>
-                {recImportant ? (
-                  <View style={styles.toggleRow}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Agregar a Google Calendar
-                    </ThemedText>
-                    <Switch
-                      value={recCalendarExport}
-                      onValueChange={setRecCalendarExport}
-                      trackColor={{ false: theme.border, true: primarySoft }}
-                      thumbColor={recCalendarExport ? primary : theme.onBrand}
+                ))}
+              </View>
+
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}>
+                {addType === 'Pago único' ? (
+                  <View style={styles.formStack}>
+                    <TextInput
+                      placeholder="Nombre"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={dueName}
+                      onChangeText={setDueName}
                     />
+                    <TextInput
+                      placeholder="Monto"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={dueAmount}
+                      onChangeText={(value) => setDueAmount(formatAmountInput(value))}
+                      keyboardType="numeric"
+                    />
+                    <CurrencySelect
+                      value={dueCurrency}
+                      onChange={setDueCurrency}
+                      compact
+                      style={styles.inlineCurrency}
+                      label=""
+                    />
+                    <Pressable
+                      onPress={() => {
+                        if (NativeDateTimePicker) {
+                          setPickerTarget('dueDate');
+                          setShowPicker(true);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.dateBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Fecha
+                      </ThemedText>
+                      <ThemedText type="smallBold">{formatShortDate(toISODate(dueDate))}</ThemedText>
+                    </Pressable>
+                    {Platform.OS === 'web' ? (
+                      <TextInput
+                        placeholder="AAAA-MM-DD"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        value={toISODate(dueDate)}
+                        onChangeText={(value) => {
+                          const date = new Date(value + 'T00:00:00');
+                          if (!Number.isNaN(date.getTime())) {
+                            setDueDate(date);
+                          }
+                        }}
+                      />
+                    ) : null}
+
+                    <Pressable
+                      onPress={() => openSelect('dueCategory')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Categoría
+                      </ThemedText>
+                      <ThemedText type="smallBold">{dueCategory || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => openSelect('dueMethod')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Método
+                      </ThemedText>
+                      <ThemedText type="smallBold">{dueMethod || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <TextInput
+                      placeholder="Nota (opcional)"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={dueNote}
+                      onChangeText={setDueNote}
+                    />
+                    <View style={styles.toggleRow}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Marcar como importante
+                      </ThemedText>
+                      <Switch
+                        value={dueImportant}
+                        onValueChange={(value) =>
+                          handleImportantToggle(value, setDueImportant, () => setDueCalendarExport(false))
+                        }
+                        trackColor={{ false: theme.border, true: primarySoft }}
+                        thumbColor={dueImportant ? primary : theme.onBrand}
+                      />
+                    </View>
+                    {dueImportant ? (
+                      <View style={styles.toggleRow}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Agregar a Google Calendar
+                        </ThemedText>
+                        <Switch
+                          value={dueCalendarExport}
+                          onValueChange={setDueCalendarExport}
+                          trackColor={{ false: theme.border, true: primarySoft }}
+                          thumbColor={dueCalendarExport ? primary : theme.onBrand}
+                        />
+                      </View>
+                    ) : null}
+                    {importantHint ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {importantHint}
+                      </ThemedText>
+                    ) : null}
                   </View>
                 ) : null}
-                {importantHint ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {importantHint}
-                  </ThemedText>
-                ) : null}
-              </View>
-            ) : null}
 
-            {addType === 'Cuota' ? (
-              <View style={styles.formStack}>
-                <TextInput
-                  placeholder="Compra"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={instName}
-                  onChangeText={setInstName}
-                />
-                <TextInput
-                  placeholder="Monto por cuota"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={instAmount}
-                  onChangeText={setInstAmount}
-                  keyboardType="numeric"
-                />
-                <CurrencySelect
-                  value={instCurrency}
-                  onChange={setInstCurrency}
-                  compact
-                  style={styles.inlineCurrency}
-                  label=""
-                />
-                <TextInput
-                  placeholder="Cantidad total de cuotas"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={instTotal}
-                  onChangeText={setInstTotal}
-                  keyboardType="numeric"
-                />
-                <TextInput
-                  placeholder="Cuota actual (ej. 1)"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                  value={instCurrent}
-                  onChangeText={setInstCurrent}
-                  keyboardType="numeric"
-                />
+                {addType === 'Recurrente' ? (
+                  <View style={styles.formStack}>
+                    <TextInput
+                      placeholder="Nombre"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={recName}
+                      onChangeText={setRecName}
+                    />
+                    <TextInput
+                      placeholder="Monto"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={recAmount}
+                      onChangeText={(value) => setRecAmount(formatAmountInput(value))}
+                      keyboardType="numeric"
+                    />
+                    <CurrencySelect
+                      value={recCurrency}
+                      onChange={setRecCurrency}
+                      compact
+                      style={styles.inlineCurrency}
+                      label=""
+                    />
+
+                    <View style={styles.inlineLabel}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Frecuencia
+                      </ThemedText>
+                    </View>
+                    <View style={styles.tabsRow}>
+                      {['Semanal', 'Mensual', 'Cada X días'].map((label) => (
+                        <SelectableOption
+                          key={label}
+                          label={label}
+                          selected={
+                            (label === 'Semanal' && recFrequency === 'weekly') ||
+                            (label === 'Mensual' && recFrequency === 'monthly') ||
+                            (label === 'Cada X días' && recFrequency === 'everyX')
+                          }
+                          onPress={() =>
+                            setRecFrequency(
+                              label === 'Semanal' ? 'weekly' : label === 'Mensual' ? 'monthly' : 'everyX'
+                            )
+                          }
+                        />
+                      ))}
+                    </View>
+                    {recFrequency === 'everyX' ? (
+                      <TextInput
+                        placeholder="Cada cuántos días"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        value={recEveryDays}
+                        onChangeText={setRecEveryDays}
+                        keyboardType="numeric"
+                      />
+                    ) : null}
+
+                    <Pressable
+                      onPress={() => {
+                        if (NativeDateTimePicker) {
+                          setPickerTarget('recNextDate');
+                          setShowPicker(true);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.dateBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Próxima fecha
+                      </ThemedText>
+                      <ThemedText type="smallBold">{formatShortDate(toISODate(recNextDate))}</ThemedText>
+                    </Pressable>
+                    {Platform.OS === 'web' ? (
+                      <TextInput
+                        placeholder="AAAA-MM-DD"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        value={toISODate(recNextDate)}
+                        onChangeText={(value) => {
+                          const date = new Date(value + 'T00:00:00');
+                          if (!Number.isNaN(date.getTime())) {
+                            setRecNextDate(date);
+                          }
+                        }}
+                      />
+                    ) : null}
+
+                    <View style={styles.inlineLabel}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Duración
+                      </ThemedText>
+                    </View>
+                    <View style={styles.tabsRow}>
+                      {['Indefinido', 'Por X meses', 'Hasta fecha'].map((label) => (
+                        <SelectableOption
+                          key={label}
+                          label={label}
+                          selected={
+                            (label === 'Indefinido' && recDurationType === 'indefinite') ||
+                            (label === 'Por X meses' && recDurationType === 'months') ||
+                            (label === 'Hasta fecha' && recDurationType === 'until')
+                          }
+                          onPress={() =>
+                            setRecDurationType(
+                              label === 'Indefinido' ? 'indefinite' : label === 'Por X meses' ? 'months' : 'until'
+                            )
+                          }
+                        />
+                      ))}
+                    </View>
+                    {recDurationType === 'months' ? (
+                      <TextInput
+                        placeholder="Cantidad de meses"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        value={recDurationMonths}
+                        onChangeText={setRecDurationMonths}
+                        keyboardType="numeric"
+                      />
+                    ) : null}
+                    {recDurationType === 'until' ? (
+                      <Pressable
+                        onPress={() => {
+                          if (NativeDateTimePicker) {
+                            setPickerTarget('recEndDate');
+                            setShowPicker(true);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          styles.dateBox,
+                          { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                          pressed && styles.pressed,
+                        ]}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Hasta fecha
+                        </ThemedText>
+                        <ThemedText type="smallBold">{formatShortDate(toISODate(recEndDate))}</ThemedText>
+                      </Pressable>
+                    ) : null}
+
+                    <Pressable
+                      onPress={() => openSelect('recCategory')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Categoría
+                      </ThemedText>
+                      <ThemedText type="smallBold">{recCategory || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => openSelect('recMethod')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Método
+                      </ThemedText>
+                      <ThemedText type="smallBold">{recMethod || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <View style={styles.toggleRow}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Marcar como importante
+                      </ThemedText>
+                      <Switch
+                        value={recImportant}
+                        onValueChange={(value) =>
+                          handleImportantToggle(value, setRecImportant, () => setRecCalendarExport(false))
+                        }
+                        trackColor={{ false: theme.border, true: primarySoft }}
+                        thumbColor={recImportant ? primary : theme.onBrand}
+                      />
+                    </View>
+                    {recImportant ? (
+                      <View style={styles.toggleRow}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Agregar a Google Calendar
+                        </ThemedText>
+                        <Switch
+                          value={recCalendarExport}
+                          onValueChange={setRecCalendarExport}
+                          trackColor={{ false: theme.border, true: primarySoft }}
+                          thumbColor={recCalendarExport ? primary : theme.onBrand}
+                        />
+                      </View>
+                    ) : null}
+                    {importantHint ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {importantHint}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {addType === 'Cuota' ? (
+                  <View style={styles.formStack}>
+                    <TextInput
+                      placeholder="Compra"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={instName}
+                      onChangeText={setInstName}
+                    />
+                    <TextInput
+                      placeholder="Monto por cuota"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={instAmount}
+                      onChangeText={(value) => setInstAmount(formatAmountInput(value))}
+                      keyboardType="numeric"
+                    />
+                    <CurrencySelect
+                      value={instCurrency}
+                      onChange={setInstCurrency}
+                      compact
+                      style={styles.inlineCurrency}
+                      label=""
+                    />
+                    <TextInput
+                      placeholder="Cantidad total de cuotas"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={instTotal}
+                      onChangeText={setInstTotal}
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      placeholder="Cuota actual (ej. 1)"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                      value={instCurrent}
+                      onChangeText={setInstCurrent}
+                      keyboardType="numeric"
+                    />
+                    <Pressable
+                      onPress={() => {
+                        if (NativeDateTimePicker) {
+                          setPickerTarget('instNextDate');
+                          setShowPicker(true);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.dateBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Próximo vencimiento
+                      </ThemedText>
+                      <ThemedText type="smallBold">{formatShortDate(toISODate(instNextDate))}</ThemedText>
+                    </Pressable>
+                    {Platform.OS === 'web' ? (
+                      <TextInput
+                        placeholder="AAAA-MM-DD"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        value={toISODate(instNextDate)}
+                        onChangeText={(value) => {
+                          const date = new Date(value + 'T00:00:00');
+                          if (!Number.isNaN(date.getTime())) {
+                            setInstNextDate(date);
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <Pressable
+                      onPress={() => openSelect('instCategory')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Categoría
+                      </ThemedText>
+                      <ThemedText type="smallBold">{instCategory || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => openSelect('instMethod')}
+                      style={({ pressed }) => [
+                        styles.selectBox,
+                        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Método
+                      </ThemedText>
+                      <ThemedText type="smallBold">{instMethod || 'Seleccionar'}</ThemedText>
+                    </Pressable>
+                    <View style={styles.toggleRow}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Marcar como importante
+                      </ThemedText>
+                      <Switch
+                        value={instImportant}
+                        onValueChange={(value) =>
+                          handleImportantToggle(value, setInstImportant, () => setInstCalendarExport(false))
+                        }
+                        trackColor={{ false: theme.border, true: primarySoft }}
+                        thumbColor={instImportant ? primary : theme.onBrand}
+                      />
+                    </View>
+                    {instImportant ? (
+                      <View style={styles.toggleRow}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Agregar a Google Calendar
+                        </ThemedText>
+                        <Switch
+                          value={instCalendarExport}
+                          onValueChange={setInstCalendarExport}
+                          trackColor={{ false: theme.border, true: primarySoft }}
+                          thumbColor={instCalendarExport ? primary : theme.onBrand}
+                        />
+                      </View>
+                    ) : null}
+                    {importantHint ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {importantHint}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                ) : null}
+              </ScrollView>
+
+              <View style={styles.modalActions}>
                 <Pressable
                   onPress={() => {
-                    if (NativeDateTimePicker) {
-                      setPickerTarget('instNextDate');
-                      setShowPicker(true);
-                    }
+                    resetForms();
+                    setShowAdd(false);
                   }}
                   style={({ pressed }) => [
-                    styles.dateBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    styles.outlineButton,
+                    { borderColor: theme.border },
                     pressed && styles.pressed,
                   ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Próximo vencimiento
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Cancelar
                   </ThemedText>
-                  <ThemedText type="smallBold">{formatShortDate(toISODate(instNextDate))}</ThemedText>
-                </Pressable>
-                {Platform.OS === 'web' ? (
-                  <TextInput
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-                    value={toISODate(instNextDate)}
-                    onChangeText={(value) => {
-                      const date = new Date(value + 'T00:00:00');
-                      if (!Number.isNaN(date.getTime())) {
-                        setInstNextDate(date);
-                      }
-                    }}
-                  />
-                ) : null}
-                <Pressable
-                  onPress={() => openSelect('instCategory')}
-                  style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-                    pressed && styles.pressed,
-                  ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Categoría
-                  </ThemedText>
-                  <ThemedText type="smallBold">{instCategory || 'Seleccionar'}</ThemedText>
                 </Pressable>
                 <Pressable
-                  onPress={() => openSelect('instMethod')}
+                  onPress={handleSave}
                   style={({ pressed }) => [
-                    styles.selectBox,
-                    { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+                    styles.primaryButton,
+                    { backgroundColor: primary },
                     pressed && styles.pressed,
                   ]}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Método
+                  <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
+                    {isEditing ? 'Guardar cambios' : 'Guardar'}
                   </ThemedText>
-                  <ThemedText type="smallBold">{instMethod || 'Seleccionar'}</ThemedText>
                 </Pressable>
-                <View style={styles.toggleRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Marcar como importante
-                  </ThemedText>
-                  <Switch
-                    value={instImportant}
-                    onValueChange={(value) =>
-                      handleImportantToggle(value, setInstImportant, () => setInstCalendarExport(false))
-                    }
-                    trackColor={{ false: theme.border, true: primarySoft }}
-                    thumbColor={instImportant ? primary : theme.onBrand}
-                  />
-                </View>
-                {instImportant ? (
-                  <View style={styles.toggleRow}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Agregar a Google Calendar
-                    </ThemedText>
-                    <Switch
-                      value={instCalendarExport}
-                      onValueChange={setInstCalendarExport}
-                      trackColor={{ false: theme.border, true: primarySoft }}
-                      thumbColor={instCalendarExport ? primary : theme.onBrand}
-                    />
-                  </View>
-                ) : null}
-                {importantHint ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {importantHint}
-                  </ThemedText>
-                ) : null}
               </View>
-            ) : null}
-
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => {
-                  resetForms();
-                  setShowAdd(false);
-                }}
-                style={({ pressed }) => [
-                  styles.outlineButton,
-                  { borderColor: theme.border },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Cancelar
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={handleSave}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  { backgroundColor: primary },
-                  pressed && styles.pressed,
-                ]}>
-                <ThemedText type="smallBold" style={[styles.primaryText, { color: theme.onBrand }]}>
-                  {isEditing ? 'Guardar cambios' : 'Guardar'}
-                </ThemedText>
-              </Pressable>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1677,10 +1701,22 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
+  modalKeyboardWrap: {
+    width: '100%',
+    alignSelf: 'center',
+  },
   modalCard: {
+    maxHeight: '92%',
     borderRadius: 20,
     padding: Spacing.four,
     gap: Spacing.three,
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalScrollContent: {
+    gap: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   modalHeader: {
     gap: Spacing.one,

@@ -125,8 +125,18 @@ categoriesRouter.delete('/:name', async (req, res) => {
 
 categoriesRouter.delete('/clear', async (req, res) => {
   try {
-    const result = await prisma.category.deleteMany({
+    const memberships = await prisma.duoMember.findMany({
       where: { userId: req.userId },
+      select: { duoId: true },
+    });
+    const duoIds = memberships.map((membership) => membership.duoId);
+    const result = await prisma.category.deleteMany({
+      where:
+        duoIds.length > 0
+          ? {
+              OR: [{ userId: req.userId }, { duoId: { in: duoIds } }],
+            }
+          : { userId: req.userId },
     });
     // eslint-disable-next-line no-console
     console.log('[categories][clear]', { userId: req.userId, deleted: result.count });

@@ -54,6 +54,26 @@ export type Installment = {
   createdAt: string;
 };
 
+export function getRecurringVisualState(item: RecurringPayment, referenceDate: Date = new Date()) {
+  if (item.status === 'paused') {
+    return { statusLabel: 'Pausado', overdue: false };
+  }
+  if (item.status === 'ended') {
+    return { statusLabel: 'Finalizado', overdue: false };
+  }
+
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+  const nextDate = new Date(item.nextDate + 'T00:00:00');
+  nextDate.setHours(0, 0, 0, 0);
+
+  if (!Number.isNaN(nextDate.getTime()) && nextDate < today) {
+    return { statusLabel: 'Vencido', overdue: true };
+  }
+
+  return { statusLabel: 'Activo', overdue: false };
+}
+
 async function getAuthToken() {
   const cached = getCachedAuthState();
   if (cached.token) return cached.token;

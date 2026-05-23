@@ -41,7 +41,8 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { state: duoState, setContext } = useDuo();
   const { transactions, refresh } = useTransactions();
-  const { settings, refresh: refreshSettings } = useFinanceSettings();
+  const { refresh: refreshSettings, currencies: financeCurrencies, getSettingsForCurrency } =
+    useFinanceSettings();
   const { settings: appSettings } = useAppSettings();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [dueDates, setDueDates] = useState<DueDate[]>([]);
@@ -57,6 +58,10 @@ export default function HomeScreen() {
   const headerTitle = isDuo
     ? `${user?.name ?? 'Vos'} + Duo`
     : `Hola, ${user?.name ?? 'bienvenida'}`;
+  const homeCurrencySettings = useMemo(
+    () => getSettingsForCurrency(appSettings.currency),
+    [getSettingsForCurrency, appSettings.currency]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +71,7 @@ export default function HomeScreen() {
         await refreshSettings();
         const renewalResult = await ensureWeeklyRenewal(null, appSettings.currency);
         if (renewalResult.status === 'pending' || renewalResult.status === 'confirm') {
-          const promptKey = `${renewalResult.status}-${settings.weeklyPendingSince ?? ''}-${renewalResult.amount ?? 0}`;
+          const promptKey = `${renewalResult.status}-${homeCurrencySettings.weeklyPendingSince ?? ''}-${renewalResult.amount ?? 0}`;
           if (weeklyPromptedRef.current !== promptKey) {
             weeklyPromptedRef.current = promptKey;
             if (renewalResult.status === 'pending') {
@@ -84,7 +89,7 @@ export default function HomeScreen() {
                     text: 'No, omitir',
                     style: 'cancel',
                     onPress: async () => {
-                      await skipWeeklyRenewal();
+                      await skipWeeklyRenewal(appSettings.currency);
                       await refreshSettings();
                     },
                   },
@@ -117,14 +122,18 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [refresh, refreshSettings, appSettings.currency, settings.weeklyPendingSince, duoState.activeContext, duoState.duoId])
+    }, [refresh, refreshSettings, appSettings.currency, homeCurrencySettings.weeklyPendingSince, duoState.activeContext, duoState.duoId])
   );
 
   const monthData = useMemo(() => {
     const now = new Date();
     const monthTx = filterByMonth(transactions, now);
     const currencies = Array.from(
-      new Set(monthTx.map((tx) => getTransactionCurrency(tx, appSettings.currency)))
+      new Set([
+        appSettings.currency,
+        ...financeCurrencies,
+        ...transactions.map((tx) => getTransactionCurrency(tx, appSettings.currency)),
+      ])
     );
 
     const normalizedCurrencies =
@@ -139,16 +148,54 @@ export default function HomeScreen() {
 
     return normalizedCurrencies.map((currency) => {
       const currencyTx = filterByCurrency(monthTx, currency);
+      const allCurrencyTx = filterByCurrency(transactions, currency);
+      const currencySettings = getSettingsForCurrency(currency);
       const totals = calculateTotals(currencyTx, currency);
-        const availability = calculateAvailable(totals, settings, currency, currencyTx, new Date());
+      const availability = calculateAvailable(totals, currencySettings, currency, currencyTx, new Date());
+      const latestWeeklyRenewal = allCurrencyTx
+        .filter(
+          (tx) =>
+            tx.system === 'weekly-renewal' ||
+            tx.category === 'Renovación semanal' ||
+            tx.category === 'RenovaciÃ³n semanal'
+        )
+        .reduce<typeof allCurrencyTx[number] | null>((latest, current) => {
+          if (!latest) return current;
+          if (current.date > latest.date) return current;
+          if (current.date === latest.date && (current.createdAt ?? '') > (latest.createdAt ?? '')) {
+            return current;
+          }
+          return latest;
+        }, null);
+      const weeklyCycleStart = currencySettings.weeklyLastRenewedAt
+        ? currencySettings.weeklyLastRenewedAt.slice(0, 10)
+        : latestWeeklyRenewal?.date ?? toISODate(startOfWeek(new Date()));
+      const weeklyEnabled =
+        currencySettings.weeklyMode === 'manual'
+          ? Math.max(currencySettings.weeklyManualEnabledAmount, 0)
+          : Math.max(currencySettings.weeklyLastRenewalAmount ?? 0, 0) +
+            (currencySettings.weeklyRolloverMode === 'keep'
+              ? Math.max(currencySettings.weeklyLastCarryover ?? 0, 0)
+              : 0);
+      const weeklyUsed = allCurrencyTx.reduce((acc, tx) => {
+        if (!tx.weekly || tx.type !== 'expense') return acc;
+        if (tx.system === 'savings-renewal') return acc;
+        if (tx.date < weeklyCycleStart) return acc;
+        return acc + tx.amount;
+      }, 0);
 
       return {
         currency,
         totals,
         availability,
+        weekly: {
+          enabled: weeklyEnabled,
+          used: weeklyUsed,
+          remaining: Math.max(weeklyEnabled - weeklyUsed, 0),
+        },
       };
     });
-  }, [transactions, settings, appSettings.currency]);
+  }, [transactions, appSettings.currency, financeCurrencies, getSettingsForCurrency]);
 
   const primaryMonth = useMemo(() => {
     return (
@@ -157,6 +204,7 @@ export default function HomeScreen() {
         currency: appSettings.currency,
         totals: { income: 0, expense: 0, savingsManual: 0 },
         availability: { savingsReserved: 0, savingsTotal: 0, available: 0 },
+        weekly: { enabled: 0, used: 0, remaining: 0 },
       }
     );
   }, [monthData, appSettings.currency]);
@@ -177,58 +225,6 @@ export default function HomeScreen() {
       summaryCarouselRef.current?.scrollTo({ x: currencyIndex * summaryWidth, animated: true });
     }
   }, [currencyIndex, carouselWidth, summaryWidth]);
-
-  const currencyTransactions = useMemo(
-    () => filterByCurrency(transactions, appSettings.currency),
-    [transactions, appSettings.currency]
-  );
-
-  const latestWeeklyRenewal = useMemo(() => {
-    const candidates = currencyTransactions.filter(
-      (tx) =>
-        tx.system === 'weekly-renewal' ||
-        tx.category === 'Renovación semanal' ||
-        tx.category === 'RenovaciÃ³n semanal'
-    );
-    if (candidates.length === 0) return null;
-    return candidates.reduce((latest, current) => {
-      if (current.date > latest.date) return current;
-      if (current.date === latest.date && (current.createdAt ?? '') > (latest.createdAt ?? '')) {
-        return current;
-      }
-      return latest;
-    }, candidates[0]);
-  }, [currencyTransactions]);
-
-  const weeklyCycleStart = useMemo(() => {
-    if (latestWeeklyRenewal?.date) {
-      return latestWeeklyRenewal.date;
-    }
-    if (settings.weeklyLastRenewedAt) {
-      return settings.weeklyLastRenewedAt.slice(0, 10);
-    }
-    return toISODate(startOfWeek(new Date()));
-  }, [latestWeeklyRenewal, settings.weeklyLastRenewedAt]);
-  const weeklyEnabled = useMemo(() => {
-    if (settings.weeklyMode === 'manual') {
-      return Math.max(settings.weeklyManualEnabledAmount, 0);
-    }
-    const base = latestWeeklyRenewal?.amount ?? 0;
-    const carryover = settings.weeklyRolloverMode === 'keep' ? Math.max(settings.weeklyLastCarryover ?? 0, 0) : 0;
-    return base + carryover;
-  }, [settings.weeklyMode, settings.weeklyManualEnabledAmount, settings.weeklyLastCarryover, settings.weeklyRolloverMode, latestWeeklyRenewal]);
-
-  const weeklyUsed = useMemo(
-    () =>
-      currencyTransactions.reduce((acc, tx) => {
-        if (!tx.weekly || tx.type !== 'expense') return acc;
-        if (tx.date < weeklyCycleStart) return acc;
-        return acc + tx.amount;
-      }, 0),
-    [currencyTransactions, weeklyCycleStart]
-  );
-
-  const weeklyRemaining = Math.max(weeklyEnabled - weeklyUsed, 0);
 
   const recent = transactions.slice(0, 3);
 
@@ -351,7 +347,7 @@ export default function HomeScreen() {
       </Card>
 
       <Pressable
-        onPress={() => router.push({ pathname: '/budget', params: { tab: 'Semanal' } })}
+        onPress={() => router.push({ pathname: '/budget', params: { tab: 'Semanal', currency: activeMonth.currency } })}
         style={({ pressed }) => [pressed && styles.cardPressed]}>
         <Card
           style={[
@@ -359,23 +355,26 @@ export default function HomeScreen() {
             isDuo && styles.duoCardBorder(theme),
             isDuo && { backgroundColor: theme.duoSoft },
           ]}>
-          <View style={styles.secondaryHeader}>
-            <View style={styles.headerLabelRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
-                Disponible semanal
+            <View style={styles.secondaryHeader}>
+              <View style={styles.headerLabelRow}>
+                <ThemedText type="smallBold" themeColor="textSecondary" style={styles.secondaryTitle}>
+                  Disponible semanal
+                </ThemedText>
+                <Pill label={activeMonth.currency} tone="accent" />
+              </View>
+              <ThemedText type="subtitle" style={styles.secondaryValue}>
+                {formatCurrency(activeMonth.weekly.enabled, activeMonth.currency)}
               </ThemedText>
             </View>
-            <ThemedText type="subtitle" style={styles.secondaryValue}>
-              {formatCurrency(weeklyRemaining)}
-            </ThemedText>
-          </View>
-          <ProgressBar value={weeklyEnabled > 0 ? weeklyUsed / weeklyEnabled : 0} />
+          <ProgressBar
+            value={activeMonth.weekly.enabled > 0 ? activeMonth.weekly.used / activeMonth.weekly.enabled : 0}
+          />
           <View style={styles.weeklySummaryRow}>
             <ThemedText type="small" themeColor="textSecondary">
-              Usado: {formatCurrency(weeklyUsed)}
+              Usado: {formatCurrency(activeMonth.weekly.used, activeMonth.currency)}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Restante: {formatCurrency(weeklyRemaining)}
+              Restante: {formatCurrency(activeMonth.weekly.remaining, activeMonth.currency)}
             </ThemedText>
           </View>
         </Card>

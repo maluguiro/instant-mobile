@@ -163,10 +163,11 @@ function normalizeTransactions(items: Transaction[]) {
 }
 
 function splitMeta(payload: Partial<Transaction>) {
-  const { system, ...rest } = payload;
+  const { system, weekly, ...rest } = payload;
   const meta: TransactionMeta = {};
   if (system !== undefined) meta.system = system as TransactionSystem;
-  return { meta, body: rest };
+  if (weekly !== undefined) meta.weekly = weekly;
+  return { meta, body: { ...rest, weekly } };
 }
 
 export async function getTransactions(): Promise<Transaction[]> {

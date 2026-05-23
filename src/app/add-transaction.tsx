@@ -12,6 +12,7 @@ import { SelectableOption } from '@/components/ui/selectable-option';
 import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
 import { Spacing } from '@/constants/theme';
 import { formatShortDate, toISODate } from '@/lib/finance';
+import { formatAmountInput, parseAmountInput } from '@/lib/amount-input';
 import { addCategory, getCategories } from '@/lib/categories';
 import { addTransaction as addStoredTransaction } from '@/lib/transactions';
 import { Transaction } from '@/lib/types';
@@ -153,8 +154,7 @@ export default function AddTransactionScreen() {
   const handleSave = async () => {
     if (saving) return;
 
-    const normalized = amount.replace(/[^0-9,.-]/g, '').replace(',', '.');
-    const value = Number(normalized);
+    const value = parseAmountInput(amount);
     const category = useCustomCategory ? customCategory.trim() : selectedCategory;
     const method = useCustomMethod ? customMethod.trim() : selectedMethod;
 
@@ -253,7 +253,7 @@ export default function AddTransactionScreen() {
             style={[styles.amountInput, { color: theme.text }]}
             keyboardType="numeric"
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(value) => setAmount(formatAmountInput(value))}
             autoFocus={shouldAutoFocus}
           />
           <CurrencySelect

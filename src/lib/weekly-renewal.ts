@@ -34,19 +34,20 @@ export async function ensureWeeklyRenewal(
   transactions: Transaction[] | null,
   currency: string
 ): Promise<WeeklyRenewalOutcome> {
-  const settings = await getFinanceSettings();
+  const resolvedCurrency = currency as CurrencyCode;
+  const settings = await getFinanceSettings(resolvedCurrency);
   const weeklyMode = settings.weeklyMode === 'auto' ? 'fixed' : settings.weeklyMode;
   if (weeklyMode !== 'fixed') return { status: 'none' };
   if (settings.weeklyAmount <= 0) return { status: 'none' };
   if (settings.weeklyRenewal === 'manual') return { status: 'none' };
 
   const baseTransactions = transactions ?? (await getTransactions());
-  await fixWeeklyRenewalAmounts(baseTransactions, Math.max(settings.weeklyAmount, 0), currency as CurrencyCode);
+  await fixWeeklyRenewalAmounts(baseTransactions, Math.max(settings.weeklyAmount, 0), resolvedCurrency);
 
   const today = startOfDay(new Date());
   const lastRenewedAt = settings.weeklyLastRenewedAt ? startOfDay(new Date(settings.weeklyLastRenewedAt)) : null;
 
-  const monthlyAvailable = getMonthlyAvailable(settings, baseTransactions, currency);
+  const monthlyAvailable = getMonthlyAvailable(settings, baseTransactions, resolvedCurrency);
   const weeklyAmount = Math.max(settings.weeklyAmount, 0);
 
   const hasRenewalSince = (from: Date) => {
@@ -92,18 +93,19 @@ export async function ensureWeeklyRenewal(
       weeklyPendingRenewal: true,
       weeklyPendingSince: today.toISOString(),
       weeklyPendingAmount: weeklyAmount,
-    });
+    }, resolvedCurrency);
     return { status: 'pending', amount: weeklyAmount, available: monthlyAvailable };
   }
 
-  return applyWeeklyRenewal(baseTransactions, currency);
+  return applyWeeklyRenewal(baseTransactions, resolvedCurrency);
 }
 
 export async function applyWeeklyRenewal(
   transactions: Transaction[] | null,
   currency: string
 ): Promise<WeeklyRenewalOutcome> {
-  const settings = await getFinanceSettings();
+  const resolvedCurrency = currency as CurrencyCode;
+  const settings = await getFinanceSettings(resolvedCurrency);
   const baseTransactions = transactions ?? (await getTransactions());
   const today = startOfDay(new Date());
   const lastRenewedAt = settings.weeklyLastRenewedAt ? startOfDay(new Date(settings.weeklyLastRenewedAt)) : null;
@@ -114,6 +116,7 @@ export async function applyWeeklyRenewal(
     const from = toISODate(lastRenewedAt);
     const spent = baseTransactions.reduce((acc, tx) => {
       if (!tx.weekly || tx.type !== 'expense') return acc;
+      if (tx.system === 'savings-renewal') return acc;
       if (tx.date < from) return acc;
       return acc + tx.amount;
     }, 0);
@@ -128,7 +131,7 @@ export async function applyWeeklyRenewal(
       id: String(Date.now()) + '-rollover',
       type: 'expense',
       amount: carryover,
-      currency: currency as CurrencyCode,
+      currency: resolvedCurrency,
       category: 'Ahorro',
       date: toISODate(today),
       method: 'Automático',
@@ -144,13 +147,13 @@ export async function applyWeeklyRenewal(
   const renewalAmount = Math.max(settings.weeklyAmount, 0);
   const carryoverToKeep = shouldKeepCarryover ? carryover : 0;
 
-  await fixWeeklyRenewalAmounts(baseTransactions, renewalAmount, currency as CurrencyCode);
+  await fixWeeklyRenewalAmounts(baseTransactions, renewalAmount, resolvedCurrency);
 
   const renewalTx: Transaction = {
     id: String(Date.now()),
     type: 'expense',
     amount: renewalAmount,
-    currency: currency as CurrencyCode,
+    currency: resolvedCurrency,
     category: 'Renovación semanal',
     date: toISODate(today),
     method: 'Automático',
@@ -168,7 +171,7 @@ export async function applyWeeklyRenewal(
     weeklyPendingRenewal: false,
     weeklyPendingSince: null,
     weeklyPendingAmount: 0,
-  });
+  }, resolvedCurrency);
   return { status: 'renewed', amount: renewalAmount, carryover: carryoverToKeep };
 }
 
@@ -181,8 +184,9 @@ async function fixWeeklyRenewalAmounts(transactions: Transaction[], correctAmoun
   }
 }
 
-export async function skipWeeklyRenewal(): Promise<void> {
-  const settings = await getFinanceSettings();
+export async function skipWeeklyRenewal(currency?: CurrencyCode): Promise<void> {
+  const resolvedCurrency = currency ?? ((await getFinanceSettings()).savingsCurrency as CurrencyCode);
+  const settings = await getFinanceSettings(resolvedCurrency);
   await saveFinanceSettings({
     ...settings,
     weeklyPendingRenewal: false,
@@ -191,7 +195,7 @@ export async function skipWeeklyRenewal(): Promise<void> {
     weeklyLastRenewedAt: startOfDay(new Date()).toISOString(),
     weeklyLastRenewalAmount: 0,
     weeklyLastCarryover: 0,
-  });
+  }, resolvedCurrency);
 }
 
 function getMonthlyAvailable(

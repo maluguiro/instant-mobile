@@ -545,3 +545,42 @@ calendarRouter.delete('/installments/:id', async (req, res) => {
   await model.delete({ where: { id } });
   return res.status(204).send();
 });
+
+calendarRouter.delete('/clear', async (req, res) => {
+  try {
+    const memberships = await prisma.duoMember.findMany({
+      where: { userId: req.userId },
+      select: { duoId: true },
+    });
+    const duoIds = memberships.map((membership) => membership.duoId);
+    const where =
+      duoIds.length > 0
+        ? {
+            OR: [{ userId: req.userId }, { duoId: { in: duoIds } }],
+          }
+        : { userId: req.userId };
+
+    const dueDateModel = getDueDateModel();
+    const recurringModel = getRecurringPaymentModel();
+    const installmentModel = getInstallmentModel();
+
+    const [dueDates, recurring, installments] = await Promise.all([
+      dueDateModel ? dueDateModel.deleteMany({ where }) : Promise.resolve({ count: 0 }),
+      recurringModel ? recurringModel.deleteMany({ where }) : Promise.resolve({ count: 0 }),
+      installmentModel ? installmentModel.deleteMany({ where }) : Promise.resolve({ count: 0 }),
+    ]);
+
+    return res.json({
+      ok: true,
+      deleted: {
+        dueDates: dueDates.count ?? 0,
+        recurring: recurring.count ?? 0,
+        installments: installments.count ?? 0,
+      },
+    });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[calendar][clear][error]', { userId: req.userId, error });
+    return res.status(500).json({ error: 'No se pudieron borrar los datos de calendario.' });
+  }
+});

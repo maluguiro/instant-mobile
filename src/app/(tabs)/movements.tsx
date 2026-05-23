@@ -29,6 +29,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { addCategory, getCategories } from '@/lib/categories';
 import { addPaymentMethod, BASE_PAYMENT_METHODS, getPaymentMethods } from '@/lib/payment-methods';
+import { formatAmountInput, parseAmountInput } from '@/lib/amount-input';
 import { Transaction } from '@/lib/types';
 
 const PERIOD_FILTERS = ['Todo', 'Hoy', 'Esta semana', 'Este mes', 'Personalizado'] as const;
@@ -214,7 +215,7 @@ const groups = useMemo(() => groupByDate(filtered), [filtered]);
     setEditError('');
     setEditingTx(tx);
     setEditType(tx.type);
-    setEditAmount(String(tx.amount));
+    setEditAmount(formatAmountInput(String(tx.amount)));
     setEditCurrency(tx.currency || appSettings.currency);
     setEditCategory(tx.category);
     setEditMethod(tx.method);
@@ -225,8 +226,7 @@ const groups = useMemo(() => groupByDate(filtered), [filtered]);
 
   const handleSaveEdit = async () => {
     if (!editingTx) return;
-    const normalized = editAmount.replace(/[^0-9,.-]/g, '').replace(',', '.');
-    const value = Number(normalized);
+    const value = parseAmountInput(editAmount);
     if (!value || Number.isNaN(value) || value <= 0) {
       setEditError('Ingresá un monto válido.');
       return;
@@ -512,7 +512,7 @@ const groups = useMemo(() => groupByDate(filtered), [filtered]);
                     style={[styles.amountInput, { color: theme.text, borderColor: theme.border }]}
                     keyboardType="numeric"
                     value={editAmount}
-                    onChangeText={setEditAmount}
+                    onChangeText={(value) => setEditAmount(formatAmountInput(value))}
                   />
                   <CurrencySelect
                     value={editCurrency}
